@@ -1,0 +1,122 @@
+From 461a7e07e81efd2e91e8ac9ad35bc5aa242bd138 Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton <pauloewerton@lsd.ufcg.edu.br>
+Date: Mon, 9 Nov 2015 14:21:27 +0000
+Subject: [PATCH] Handle EmptyCatalog exception in list federated projects
+
+This patch handles the EmptyCatalog exception raised from the
+keystoneauth1.access.service_catalog.url_for function
+when listing projects in the unscoped token case. Also a new
+test class, K2KFederatedProjectTests, is added.
+
+Co-Authored-By: Doug Fish <drfish@us.ibm.com>
+
+Change-Id: I37e601cf0126ddae2a3e5ec255f4e4703ecf7682
+Closes-Bug: #1471943
+---
+ keystoneclient/tests/unit/v3/test_federation.py | 49 ++++++++++++++++++++-----
+ keystoneclient/v3/contrib/federation/base.py    |  2 +-
+ 2 files changed, 41 insertions(+), 10 deletions(-)
+
+diff --git a/keystoneclient/tests/unit/v3/test_federation.py b/keystoneclient/tests/unit/v3/test_federation.py
+index 5782aa6..d84b8ae 100644
+--- a/keystoneclient/tests/unit/v3/test_federation.py
++++ b/keystoneclient/tests/unit/v3/test_federation.py
+@@ -13,10 +13,13 @@
+ import copy
+ import uuid
+ 
++from keystoneauth1.tests.unit.identity import test_identity_v3_federation
++
+ from keystoneclient import access
+ from keystoneclient import exceptions
+ from keystoneclient import fixture
+ from keystoneclient.tests.unit.v3 import utils
++from keystoneclient.v3 import client
+ from keystoneclient.v3.contrib.federation import base
+ from keystoneclient.v3.contrib.federation import identity_providers
+ from keystoneclient.v3.contrib.federation import mappings
+@@ -25,6 +28,8 @@ from keystoneclient.v3.contrib.federation import service_providers
+ from keystoneclient.v3 import domains
+ from keystoneclient.v3 import projects
+ 
++from testtools import matchers
++
+ 
+ class IdentityProviderTests(utils.TestCase, utils.CrudTests):
+     def setUp(self):
+@@ -344,17 +349,10 @@ class FederationProjectTests(utils.TestCase):
+         self.manager = self.client.federation.projects
+         self.URL = "%s%s" % (self.TEST_URL, '/OS-FEDERATION/projects')
+ 
+-    def new_ref(self, **kwargs):
+-        kwargs.setdefault('id', uuid.uuid4().hex)
+-        kwargs.setdefault('domain_id', uuid.uuid4().hex)
+-        kwargs.setdefault('enabled', True)
+-        kwargs.setdefault('name', uuid.uuid4().hex)
+-        return kwargs
+-
+     def test_list_accessible_projects(self):
+-        projects_ref = [self.new_ref(), self.new_ref()]
++        projects_ref = [new_ref(), new_ref()]
+         projects_json = {
+-            self.collection_key: [self.new_ref(), self.new_ref()]
++            self.collection_key: [new_ref(), new_ref()]
+         }
+         self.requests_mock.get(self.URL, json=projects_json)
+         returned_list = self.manager.list()
+@@ -364,6 +362,39 @@ class FederationProjectTests(utils.TestCase):
+             self.assertIsInstance(project, self.model)
+ 
+ 
++def new_ref(**kwargs):
++    kwargs.setdefault('id', uuid.uuid4().hex)
++    kwargs.setdefault('domain_id', uuid.uuid4().hex)
++    kwargs.setdefault('enabled', True)
++    kwargs.setdefault('name', uuid.uuid4().hex)
++    return kwargs
++
++
++class K2KFederatedProjectTests(test_identity_v3_federation.K2KAuthPluginTest):
++    def setUp(self):
++        super(K2KFederatedProjectTests, self).setUp()
++        self.collection_key = 'projects'
++        self.model = projects.Project
++        self.URL = '%s%s' % (self.SP_ROOT_URL, '/OS-FEDERATION/projects')
++
++    def test_list_projects(self):
++        self._mock_k2k_flow_urls()
++        projects_json = {
++            self.collection_key: [new_ref(), new_ref()]
++        }
++        self.requests_mock.get(self.URL, json=projects_json)
++        version_json = {
++            'version': fixture.discovery.V3Discovery(self.SP_ROOT_URL)
++        }
++        self.requests_mock.get(self.SP_ROOT_URL, json=version_json)
++        k2k_client = client.Client(session=self.session, auth=self.k2kplugin)
++        returned_list = k2k_client.federation.projects.list()
++
++        self.assertThat(returned_list, matchers.HasLength(2))
++        for project in returned_list:
++            self.assertIsInstance(project, self.model)
++
++
+ class FederationDomainTests(utils.TestCase):
+ 
+     def setUp(self):
+diff --git a/keystoneclient/v3/contrib/federation/base.py b/keystoneclient/v3/contrib/federation/base.py
+index 0160170..e0db544 100644
+--- a/keystoneclient/v3/contrib/federation/base.py
++++ b/keystoneclient/v3/contrib/federation/base.py
+@@ -32,7 +32,7 @@ class EntityManager(base.Manager):
+         url = '/OS-FEDERATION/%s' % self.object_type
+         try:
+             tenant_list = self._list(url, self.object_type)
+-        except exceptions.EndpointNotFound:
++        except (exceptions.EndpointNotFound, exceptions.EmptyCatalog):
+             endpoint_filter = {'interface': base_auth.AUTH_INTERFACE}
+             tenant_list = self._list(url, self.object_type,
+                                      endpoint_filter=endpoint_filter)
+-- 
+1.9.1
+

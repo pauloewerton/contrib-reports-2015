@@ -1,0 +1,383 @@
+From b8a4161e95b50b70fd6a3dc60af115f5777be374 Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Tue, 4 Aug 2015 14:53:58 +0000
+Subject: [PATCH] JSCS cleanup - eslint cleanup for openstack-service-api
+
+Following John Papa's style guide, this patch cleans up
+the Angular code for the openstack-service-api services.
+
+Change-Id: Ia314b6521d2a5917dbd548d9c6e2663074cbc558
+Partially-Implements: blueprint jscs-cleanup
+---
+ .../openstack-service-api/cinder.service.spec.js   | 15 ++++++------
+ .../core/openstack-service-api/common-test.spec.js |  3 ++-
+ .../openstack-service-api/glance.service.spec.js   | 15 ++++++------
+ .../core/openstack-service-api/keystone.service.js |  6 +++--
+ .../openstack-service-api/keystone.service.spec.js | 27 +++++++++++-----------
+ .../openstack-service-api/neutron.service.spec.js  | 15 ++++++------
+ .../app/core/openstack-service-api/nova.service.js |  3 ++-
+ .../openstack-service-api/nova.service.spec.js     | 15 ++++++------
+ .../openstack-service-api/policy.service.spec.js   | 15 ++++++------
+ .../security-group.service.spec.js                 | 15 ++++++------
+ 10 files changed, 70 insertions(+), 59 deletions(-)
+
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js
+index eb3f57c..4fbfd87 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Cinder API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.cinder', function(cinderAPI) {
+-      service = cinderAPI;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.cinder');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -67,7 +68,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/common-test.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/common-test.spec.js
+index 9bb30ac..ace95a5 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/common-test.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/common-test.spec.js
+@@ -78,6 +78,7 @@
+     $provide.value('horizon.framework.widgets.toast.service', toastService);
+   }
+ 
+-  window.apiTest = { testCall: testCall, initServices: initServices };
++  var $injector = angular.injector(['ng']);
++  $injector.get('$window').apiTest = { testCall: testCall, initServices: initServices };
+ 
+ })();
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/glance.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/glance.service.spec.js
+index 25d02a4..8f6e2ce 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/glance.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/glance.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Glance API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.glance', function(glanceAPI) {
+-      service = glanceAPI;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.glance');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -97,7 +98,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.js b/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.js
+index c82f23f..96c650c 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.js
+@@ -299,7 +299,8 @@ limitations under the License.
+ 
+     var service = {};
+ 
+-    service.cache = $cacheFactory('horizon.app.core.openstack-service-api.userSession', {capacity: 1});
++    service.cache = $cacheFactory('horizon.app.core.openstack-service-api.userSession',
++                                  {capacity: 1});
+ 
+     service.get = function () {
+       return keystoneAPI.getCurrentUserSession({cache: service.cache})
+@@ -344,7 +345,8 @@ limitations under the License.
+   function serviceCatalog($cacheFactory, $q, keystoneAPI, userSession) {
+ 
+     var service = {};
+-    service.cache = $cacheFactory('horizon.app.core.openstack-service-api.serviceCatalog', {capacity: 1});
++    service.cache = $cacheFactory('horizon.app.core.openstack-service-api.serviceCatalog',
++                                  {capacity: 1});
+ 
+     /**
+      * @name horizon.app.core.openstack-service-api.serviceCatalog.get
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.spec.js
+index b99f188..c011758 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/keystone.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Keystone API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.keystone', function(keystoneAPI) {
+-      service = keystoneAPI;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.keystone');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -382,7 +383,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+@@ -399,9 +400,9 @@
+       $provide.value('$cacheFactory', function() { return 'cache'; });
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.userSession', function(userSession) {
+-      factory = userSession;
+-    }]));
++    beforeEach(inject(function($injector) {
++      factory = $injector.get('horizon.app.core.openstack-service-api.userSession');
++    }));
+ 
+     it('defines the factory', function() {
+       expect(factory).toBeDefined();
+@@ -453,9 +454,9 @@
+       $provide.value('$cacheFactory', function() { return 'cache'; });
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.serviceCatalog', function(serviceCatalog) {
+-      factory = serviceCatalog;
+-    }]));
++    beforeEach(inject(function($injector) {
++      factory = $injector.get('horizon.app.core.openstack-service-api.serviceCatalog');
++    }));
+ 
+     it('defines the factory', function() {
+       expect(factory).toBeDefined();
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js
+index d5d1560..8f12f25 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Neutron API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.neutron', function(neutronAPI) {
+-      service = neutronAPI;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.neutron');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -91,7 +92,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js
+index 8ceb6c5..fc011f9 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js
+@@ -300,7 +300,8 @@ limitations under the License.
+ 
+   function NovaExtensionsAPI($cacheFactory, $q, novaAPI) {
+     var service = {};
+-    service.cache = $cacheFactory('horizon.app.core.openstack-service-api.novaExtensions', {capacity: 1});
++    service.cache = $cacheFactory('horizon.app.core.openstack-service-api.novaExtensions',
++                                  {capacity: 1});
+ 
+     service.get = function () {
+       return novaAPI.getExtensions({cache: service.cache})
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js
+index 32129d7..2ad4fdb 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Nova API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.nova', function(novaAPI) {
+-      service = novaAPI;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.nova');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -211,7 +212,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/policy.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/policy.service.spec.js
+index 92e11bb..6b946dd 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/policy.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/policy.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Policy API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.policy', function(policyAPI) {
+-      service = policyAPI;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.policy');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -54,7 +55,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/security-group.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/security-group.service.spec.js
+index f4b6cce..561254a 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/security-group.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/security-group.service.spec.js
+@@ -18,19 +18,20 @@
+   'use strict';
+ 
+   describe('Security Group API', function() {
+-    var service;
++    var service, $window;
+     var apiService = {};
+     var toastService = {};
+ 
+     beforeEach(module('horizon.app.core.openstack-service-api'));
+ 
+-    beforeEach(module(function($provide) {
+-      window.apiTest.initServices($provide, apiService, toastService);
++    beforeEach(module(function($provide, $windowProvider) {
++      $windowProvider.$get().apiTest.initServices($provide, apiService, toastService);
+     }));
+ 
+-    beforeEach(inject(['horizon.app.core.openstack-service-api.security-group', function(securityGroup) {
+-      service = securityGroup;
+-    }]));
++    beforeEach(inject(function($injector) {
++      service = $injector.get('horizon.app.core.openstack-service-api.security-group');
++      $window = $injector.get('$window');
++    }));
+ 
+     it('defines the service', function() {
+       expect(service).toBeDefined();
+@@ -51,7 +52,7 @@
+     angular.forEach(tests, function(params) {
+       it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+-        window.apiTest.testCall.apply(this, callParams);
++        $window.apiTest.testCall.apply(this, callParams);
+       });
+     });
+ 
+-- 
+1.9.1
+

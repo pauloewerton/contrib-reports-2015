@@ -1,0 +1,835 @@
+From 3a1e91a3b7c329824f49394f5a5a302c21d28296 Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Tue, 16 Jun 2015 18:21:23 +0000
+Subject: [PATCH] Adding Identity NGProjects API
+
+This patch adds some projects-related endpoints to the Nova,
+Cinder and Neutron REST/Angular APIs.
+
+These changes are needed for the angular Identity Projects
+actions that handle mainly project quota updates.
+
+Partially-Implements: blueprint angularize-identity-projects
+
+Change-Id: I98b8eb9e5e7bfb0d49a77c00115fe62d412abe21
+---
+ openstack_dashboard/api/rest/cinder.py             | 26 ++++++
+ openstack_dashboard/api/rest/neutron.py            | 71 +++++++++++++++++
+ openstack_dashboard/api/rest/nova.py               | 46 +++++++++++
+ .../core/openstack-service-api/cinder.service.js   | 25 +++++-
+ .../openstack-service-api/cinder.service.spec.js   |  7 ++
+ .../neutron-extensions.service.js                  | 51 ++++++++++++
+ .../neutron-extensions.service.spec.js             | 82 +++++++++++++++++++
+ .../core/openstack-service-api/neutron.service.js  | 62 ++++++++++++++-
+ .../openstack-service-api/neutron.service.spec.js  | 27 +++++++
+ .../app/core/openstack-service-api/nova.service.js | 37 ++++++++-
+ .../openstack-service-api/nova.service.spec.js     | 21 +++++
+ .../test/api_tests/cinder_rest_tests.py            | 29 +++++++
+ .../test/api_tests/neutron_rest_tests.py           | 92 ++++++++++++++++++++++
+ .../test/api_tests/nova_rest_tests.py              | 41 ++++++++++
+ 14 files changed, 612 insertions(+), 5 deletions(-)
+ create mode 100644 openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.js
+ create mode 100644 openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.spec.js
+
+diff --git a/openstack_dashboard/api/rest/cinder.py b/openstack_dashboard/api/rest/cinder.py
+index 3e49222..fea7ec2 100644
+--- a/openstack_dashboard/api/rest/cinder.py
++++ b/openstack_dashboard/api/rest/cinder.py
+@@ -210,3 +210,29 @@ class DefaultQuotaSets(generic.View):
+             api.cinder.default_quota_update(request, **cinder_data)
+         else:
+             raise rest_utils.AjaxError(501, '')
++
++
++@urls.register
++class QuotaSets(generic.View):
++    """API for setting quotas for a given project.
++    """
++    url_regex = r'cinder/quota-sets/(?P<project_id>[0-9a-f]+)$'
++
++    @rest_utils.ajax(data_required=True)
++    def patch(self, request, project_id):
++        """Update a single project quota data.
++
++        The PATCH data should be an application/json object with the
++        attributes to set to new quota values.
++
++        This method returns HTTP 204 (no content) on success.
++        """
++        # Filters cinder quota fields
++        cinder_data = {}
++        disabled_quotas = quotas.get_disabled_quotas(request)
++
++        for key in quotas.CINDER_QUOTA_FIELDS:
++            if key not in disabled_quotas:
++                cinder_data[key] = request.DATA[key]
++
++        api.cinder.tenant_quota_update(request, project_id, **cinder_data)
+diff --git a/openstack_dashboard/api/rest/neutron.py b/openstack_dashboard/api/rest/neutron.py
+index 20d9f1b..3b61560 100644
+--- a/openstack_dashboard/api/rest/neutron.py
++++ b/openstack_dashboard/api/rest/neutron.py
+@@ -15,12 +15,14 @@
+ """API over the neutron service.
+ """
+ 
++from django.utils.translation import ugettext_lazy as _
+ from django.views import generic
+ 
+ from openstack_dashboard import api
+ from openstack_dashboard.api.rest import utils as rest_utils
+ 
+ from openstack_dashboard.api.rest import urls
++from openstack_dashboard.usage import quotas
+ 
+ 
+ @urls.register
+@@ -136,3 +138,72 @@ class Ports(generic.View):
+         # https://github.com/openstack/neutron/blob/master/neutron/api/v2/attributes.py
+         result = api.neutron.port_list(request, **request.GET)
+         return{'items': [n.to_dict() for n in result]}
++
++
++@urls.register
++class DefaultQuotaSets(generic.View):
++    """API for getting default quotas for neutron
++    """
++    url_regex = r'neutron/quota-sets/defaults/$'
++
++    @rest_utils.ajax()
++    def get(self, request):
++        if api.base.is_service_enabled(request, 'network'):
++            quota_set = api.neutron.tenant_quota_get(
++                request, request.user.tenant_id)
++
++            result = [{
++                'display_name': quotas.QUOTA_NAMES.get(
++                    quota.name,
++                    quota.name.replace('_', ' ').title()
++                ) + '',
++                'name': quota.name,
++                'limit': quota.limit
++            } for quota in quota_set]
++
++            return {'items': result}
++        else:
++            raise rest_utils.AjaxError(404, _('Service Neutron is disabled.'))
++
++
++@urls.register
++class Extensions(generic.View):
++    """API for neutron extensions.
++    """
++    url_regex = r'neutron/extensions/$'
++
++    @rest_utils.ajax()
++    def get(self, request):
++        """Get a list of extensions.
++
++        The listing result is an object with property "items". Each item is
++        an extension. Returns and empty list in case no extension is found.
++        """
++        result = api.neutron.list_extensions(request)
++        return {'items': [e for e in result]}
++
++
++@urls.register
++class QuotasSets(generic.View):
++    """API for setting quotas of a given project.
++    """
++    url_regex = r'neutron/quotas-sets/(?P<project_id>[0-9a-f]+)$'
++
++    @rest_utils.ajax(data_required=True)
++    def patch(self, request, project_id):
++        """Update a single project quota data.
++
++        The PATCH data should be an application/json object with the
++        attributes to set to new quota values.
++
++        This method returns HTTP 204 (no content) on success.
++        """
++        # Filters only neutron quota fields
++        neutron_data = {}
++        disabled_quotas = quotas.get_disabled_quotas(request)
++
++        for key in quotas.NEUTRON_QUOTA_FIELDS:
++            if key not in disabled_quotas:
++                neutron_data[key] = request.DATA[key]
++
++        api.neutron.tenant_quota_update(request, project_id, **neutron_data)
+diff --git a/openstack_dashboard/api/rest/nova.py b/openstack_dashboard/api/rest/nova.py
+index 723e054..66a278d 100644
+--- a/openstack_dashboard/api/rest/nova.py
++++ b/openstack_dashboard/api/rest/nova.py
+@@ -390,3 +390,49 @@ class DefaultQuotaSets(generic.View):
+             api.nova.default_quota_update(request, **nova_data)
+         else:
+             raise rest_utils.AjaxError(501, '')
++
++
++@urls.register
++class EditableQuotaSets(generic.View):
++    """API for editable quotas.
++    """
++    url_regex = r'nova/quota-sets/editable/$'
++
++    @rest_utils.ajax()
++    def get(self, request):
++        """Get a list of editable quota fields.
++
++           The listing result is an object with property "items". Each item
++           is an editable quota. Returns an empty list in case no editable
++           quota is found.
++        """
++        disabled_quotas = quotas.get_disabled_quotas(request)
++        editable_quotas = [quota for quota in quotas.QUOTA_FIELDS
++                           if quota not in disabled_quotas]
++        return {'items': editable_quotas}
++
++
++@urls.register
++class QuotaSets(generic.View):
++    """API for setting quotas for a given project.
++    """
++    url_regex = r'nova/quota-sets/(?P<project_id>[0-9a-f]+)$'
++
++    @rest_utils.ajax(data_required=True)
++    def patch(self, request, project_id):
++        """Update a single project quota data.
++
++        The PATCH data should be an application/json object with the
++        attributes to set to new quota values.
++
++        This method returns HTTP 204 (no content) on success.
++        """
++        nova_data = {}
++        disabled_quotas = quotas.get_disabled_quotas(request)
++
++        # Filter nova quota fields
++        for key in quotas.NOVA_QUOTA_FIELDS:
++            if key not in disabled_quotas:
++                nova_data[key] = request.DATA[key]
++
++        api.nova.tenant_quota_update(request, project_id, **nova_data)
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.js b/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.js
+index 177f955..1c5a73c 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.js
+@@ -40,7 +40,8 @@
+       getVolumeSnapshots: getVolumeSnapshots,
+       getExtensions: getExtensions,
+       getDefaultQuotaSets: getDefaultQuotaSets,
+-      setDefaultQuotaSets: setDefaultQuotaSets
++      setDefaultQuotaSets: setDefaultQuotaSets,
++      updateProjectQuota: updateProjectQuota
+     };
+ 
+     return service;
+@@ -157,8 +158,7 @@
+       var config = (params) ? {'params': params} : {};
+       return apiService.get('/api/cinder/volumesnapshots/', config)
+         .error(function () {
+-          toastService.add('error',
+-                        gettext('Unable to retrieve the volume snapshots.'));
++          toastService.add('error', gettext('Unable to retrieve the volume snapshots.'));
+         });
+     }
+ 
+@@ -227,5 +227,24 @@
+           });
+     }
+ 
++    // Quota Sets
++
++    /**
++     * @name hz.api.cinderAPI.updateProjectQuota
++     * @description
++     * Update a single project quota data.
++     * @param {application/json} quota
++     * A JSON object with the atributes to set to new quota values.
++     * @param {string} projectId
++     * Specifies the id of the project that'll have the quota data updated.
++     */
++    function updateProjectQuota(quota, projectId) {
++      var url = '/api/cinder/quota-sets/' + projectId;
++      return apiService.patch(url, quota)
++        .error(function() {
++          toastService.add('error', gettext('Unable to update project quota data.'));
++        });
++    }
+   }
++
+ }());
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js
+index 2e465cc..19169bb 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/cinder.service.spec.js
+@@ -127,6 +127,13 @@
+         method: 'patch',
+         path: '/api/cinder/quota-sets/defaults/',
+         error: 'Unable to set the default quotas.'
++      },
++      { func: 'updateProjectQuota',
++        method: 'patch',
++        path: '/api/cinder/quota-sets/42',
++        data: {'volumes': 42},
++        error: 'Unable to update project quota data.',
++        testInput: [{'volumes': 42}, 42]
+       }
+     ];
+ 
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.js b/openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.js
+new file mode 100644
+index 0000000..a85c0c2
+--- /dev/null
++++ b/openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.js
+@@ -0,0 +1,51 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.app.core.openstack-service-api')
++    .factory('horizon.app.core.openstack-service-api.neutronExtensions', neutronExtensionsAPI);
++
++  neutronExtensionsAPI.$inject = [
++    '$cacheFactory',
++    'horizon.app.core.openstack-service-api.extensions',
++    'horizon.app.core.openstack-service-api.neutron'
++  ];
++
++  /**
++   * @ngdoc service
++   * @name horizon.app.core.openstack-service-api.neutronExtensions
++   * @description
++   * Provides cached access to Neutron Extensions with utilities to help
++   * with asynchronous data loading. The cache may be reset at any time
++   * by accessing the cache and calling removeAll. The next call to any
++   * function will retrieve fresh results.
++   *
++   * The enabled extensions do not change often, so using cached data will
++   * speed up results. Even on a local devstack in informal testing,
++   * this saved between 30 - 100 ms per request.
++   */
++  function neutronExtensionsAPI($cacheFactory, extensions, neutron) {
++    return extensions({
++      cacheFactory: $cacheFactory(
++        'horizon.app.core.openstack-service-api.neutronExtensions',
++        {capacity: 1}
++      ),
++      serviceAPI: neutron
++    });
++  }
++
++}());
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.spec.js
+new file mode 100644
+index 0000000..0ff42a1
+--- /dev/null
++++ b/openstack_dashboard/static/app/core/openstack-service-api/neutron-extensions.service.spec.js
+@@ -0,0 +1,82 @@
++/*
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe("neutronExtensions", function() {
++    var factory, q, neutron;
++
++    beforeEach(module('horizon.app.core.openstack-service-api'));
++
++    beforeEach(module(function($provide) {
++      neutron = {getExtensions: function() {return {then: angular.noop};}};
++      q = {defer: function() { return {resolve: angular.noop}; }};
++      $provide.value('$cacheFactory', function() {return "cache";});
++      $provide.value('$q', q);
++      $provide.value('horizon.app.core.openstack-service-api.neutron', neutron);
++    }));
++
++    beforeEach(inject(function($injector) {
++      factory = $injector.get('horizon.app.core.openstack-service-api.neutronExtensions');
++    }));
++
++    it("is defined", function() {
++      expect(factory).toBeDefined();
++    });
++
++    it("defines .cache", function() {
++      expect(factory.cache).toBeDefined();
++    });
++
++    it("defines .get", function() {
++      expect(factory.get).toBeDefined();
++      var postAction = {then: angular.noop};
++      spyOn(neutron, 'getExtensions').and.returnValue(postAction);
++      spyOn(postAction, 'then');
++      factory.get();
++      expect(neutron.getExtensions).toHaveBeenCalledWith({cache: factory.cache});
++      expect(postAction.then).toHaveBeenCalled();
++      var func = postAction.then.calls.argsFor(0)[0];
++      var testData = {data: {items: [1, 2, 3]}};
++      expect(func(testData)).toEqual([1, 2, 3]);
++    });
++
++    it("defines .ifNameEnabled", function() {
++      expect(factory.ifNameEnabled).toBeDefined();
++      var postAction = {then: angular.noop};
++      var deferred = {reject: angular.noop, resolve: angular.noop};
++      spyOn(q, 'defer').and.returnValue(deferred);
++      spyOn(factory, 'get').and.returnValue(postAction);
++      spyOn(postAction, 'then');
++      factory.ifNameEnabled("desired");
++      expect(factory.get).toHaveBeenCalled();
++      var func1 = postAction.then.calls.argsFor(0)[0];
++      var func2 = postAction.then.calls.argsFor(0)[1];
++      spyOn(deferred, 'reject');
++      func1();
++      expect(deferred.reject).toHaveBeenCalled();
++
++      spyOn(deferred, 'resolve');
++      var extensions = [{name: "desired"}];
++      func1(extensions);
++      expect(deferred.resolve).toHaveBeenCalled();
++
++      deferred.reject.calls.reset();
++      func2();
++      expect(deferred.reject).toHaveBeenCalledWith('Cannot get the extension list.');
++    });
++  });
++
++})();
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.js b/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.js
+index f8ca651..84195f8 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.js
+@@ -36,7 +36,10 @@
+       createNetwork: createNetwork,
+       getSubnets: getSubnets,
+       createSubnet: createSubnet,
+-      getPorts: getPorts
++      getPorts: getPorts,
++      getDefaultQuotaSets: getDefaultQuotaSets,
++      getExtensions: getExtensions,
++      updateProjectQuota: updateProjectQuota
+     };
+ 
+     return service;
+@@ -213,5 +216,62 @@
+         });
+     }
+ 
++    // Default Quota Sets
++
++    /**
++     * @name horizon.app.core.openstack-service-api.neutron.getDefaultQuotaSets
++     * @description
++     * Get default quotasets
++     *
++     * The listing result is an object with property "items." Each item is
++     * a quota.
++     *
++     */
++    function getDefaultQuotaSets() {
++      return apiService.get('/api/neutron/quota-sets/defaults/')
++        .error(function(message, stat) {
++          switch (stat) {
++            case 404: toastService.add('error', message); break;
++            default: toastService.add('error', gettext('Unable to retrieve the default quotas.'));
++          }
++        });
++    }
++
++    // Extensions
++
++    /**
++     * @name hz.api.neutronAPI.getExtensions
++     * @description
++     * Returns a list of enabled extensions.
++     *
++     * The listing result is an object with property "items". Each item is
++     * an extension.
++     */
++    function getExtensions() {
++      return apiService.get('/api/neutron/extensions/')
++        .error(function() {
++          toastService.add('error', gettext('Unable to retrieve extensions.'));
++        });
++    }
++
++    // Quotas Extension
++
++    /**
++     * @name hz.api.neutronAPI.updateProjectQuota
++     * @description
++     * Update a single project quota data.
++     * @param {application/json} quota
++     * A JSON object with the atributes to set to new quota values.
++     * @param {string} projectId
++     * Specifies the id of the project that'll have the quota data updated.
++     */
++    function updateProjectQuota(quota, projectId) {
++      var url = '/api/neutron/quotas-sets/' + projectId;
++      return apiService.patch(url, quota)
++        .error(function() {
++          toastService.add('error', gettext('Unable to update project quota data.'));
++        });
++    }
+   }
++
+ }());
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js
+index 81621e2..9c59a52 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/neutron.service.spec.js
+@@ -86,6 +86,33 @@
+         "testInput": [
+           42
+         ]
++      },
++      {
++        "func": "getDefaultQuotaSets",
++        "method": "get",
++        "path": "/api/neutron/quota-sets/defaults/",
++        "error": "Unable to retrieve the default quotas."
++      },
++      {
++        "func": "getExtensions",
++        "method": "get",
++        "path": "/api/neutron/extensions/",
++        "error": "Unable to retrieve extensions."
++      },
++      {
++        "func": "updateProjectQuota",
++        "method": "patch",
++        "path": "/api/neutron/quotas-sets/42",
++        "data": {
++          "network": 42
++        },
++        "error": "Unable to update project quota data.",
++        "testInput": [
++          {
++            "network": 42
++          },
++          42
++        ]
+       }
+ 
+     ];
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js
+index 1027de6..8ae2924 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.js
+@@ -47,7 +47,9 @@
+       getAggregateExtraSpecs: getAggregateExtraSpecs,
+       editAggregateExtraSpecs: editAggregateExtraSpecs,
+       getDefaultQuotaSets: getDefaultQuotaSets,
+-      setDefaultQuotaSets: setDefaultQuotaSets
++      setDefaultQuotaSets: setDefaultQuotaSets,
++      getEditableQuotas: getEditableQuotas,
++      updateProjectQuota: updateProjectQuota
+     };
+ 
+     return service;
+@@ -387,6 +389,39 @@
+         });
+     }
+ 
++    // Quota Sets
++
++    /**
++     * @name horizon.app.core.openstack-service-api.nova.getEditableQuotas
++     * @description
++     * Get a list of editable quota fields.
++     * The listing result is an object with property "items." Each item is
++     * an editable quota field.
++     *
++     */
++    function getEditableQuotas() {
++      return apiService.get('/api/nova/quota-sets/editable/')
++        .error(function() {
++          toastService.add('error', gettext('Unable to retrieve the editable quotas.'));
++        });
++    }
++
++    /**
++     * @name horizon.app.core.openstack-service-api.nova.updateProjectQuota
++     * @description
++     * Update a single project quota data.
++     * @param {application/json} quota
++     * A JSON object with the atributes to set to new quota values.
++     * @param {string} projectId
++     * Specifies the id of the project that'll have the quota data updated.
++     */
++    function updateProjectQuota(quota, projectId) {
++      var url = '/api/nova/quota-sets/' + projectId;
++      return apiService.patch(url, quota)
++        .error(function() {
++          toastService.add('error', gettext('Unable to update project quota data.'));
++        });
++    }
+   }
+ 
+ }());
+diff --git a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js
+index d59e566..61d0563 100644
+--- a/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js
++++ b/openstack_dashboard/static/app/core/openstack-service-api/nova.service.spec.js
+@@ -261,6 +261,27 @@
+         ],
+         "path": "/api/nova/quota-sets/defaults/",
+         "error": "Unable to set the default quotas."
++      },
++      {
++        "func": "getEditableQuotas",
++        "method": "get",
++        "path": "/api/nova/quota-sets/editable/",
++        "error": "Unable to retrieve the editable quotas."
++      },
++      {
++        "func": "updateProjectQuota",
++        "method": "patch",
++        "path": "/api/nova/quota-sets/42",
++        "data": {
++          "cores": 42
++        },
++        "error": "Unable to update project quota data.",
++        "testInput": [
++          {
++            "cores": 42
++          },
++          42
++        ]
+       }
+     ];
+ 
+diff --git a/openstack_dashboard/test/api_tests/cinder_rest_tests.py b/openstack_dashboard/test/api_tests/cinder_rest_tests.py
+index 60f4f08..5ec9f12 100644
+--- a/openstack_dashboard/test/api_tests/cinder_rest_tests.py
++++ b/openstack_dashboard/test/api_tests/cinder_rest_tests.py
+@@ -19,6 +19,11 @@ from openstack_dashboard import api
+ from openstack_dashboard.api.base import Quota
+ from openstack_dashboard.api.rest import cinder
+ from openstack_dashboard.test import helpers as test
++from openstack_dashboard.test.test_data import cinder_data
++from openstack_dashboard.test.test_data.utils import TestData  # noqa
++
++
++TEST = TestData(cinder_data.data)
+ 
+ 
+ class CinderRestTestCase(test.TestCase):
+@@ -255,3 +260,27 @@ class CinderRestTestCase(test.TestCase):
+         self.assertEqual(response.content.decode('utf-8'), '""')
+ 
+         cc.default_quota_update.assert_not_called()
++
++    @mock.patch.object(cinder.api, 'cinder')
++    @mock.patch.object(cinder, 'quotas')
++    def test_quota_sets_patch(self, qc, cc):
++        quota_set = TEST.cinder_quotas.list()[0]
++        quota_data = {}
++
++        for quota in quota_set:
++            quota_data[quota.name] = quota.limit
++
++        request = self.mock_rest_request(body='''
++            {"volumes": "15", "snapshots": "5000",
++             "gigabytes": "5", "cores": "10"}
++        ''')
++
++        qc.get_disabled_quotas.return_value = []
++        qc.CINDER_QUOTA_FIELDS = (n for n in quota_data)
++        response = cinder.QuotaSets().patch(request, 'spam123')
++        self.assertStatusCode(response, 204)
++        self.assertEqual(response.content.decode('utf-8'), '')
++        cc.tenant_quota_update.assert_called_once_with(request, 'spam123',
++                                                       volumes='15',
++                                                       snapshots='5000',
++                                                       gigabytes='5')
+diff --git a/openstack_dashboard/test/api_tests/neutron_rest_tests.py b/openstack_dashboard/test/api_tests/neutron_rest_tests.py
+index 5f0ca9a..1197548 100644
+--- a/openstack_dashboard/test/api_tests/neutron_rest_tests.py
++++ b/openstack_dashboard/test/api_tests/neutron_rest_tests.py
+@@ -15,6 +15,7 @@
+ 
+ import mock
+ 
++from openstack_dashboard.api import base
+ from openstack_dashboard.api.rest import neutron
+ from openstack_dashboard.test import helpers as test
+ from openstack_dashboard.test.test_data import neutron_data
+@@ -119,6 +120,97 @@ class NeutronPortsTestCase(test.TestCase):
+             request, network_id=TEST.api_networks.first().get("id"))
+ 
+ 
++class NeutronDefaultQuotasTestCase(test.TestCase):
++    @test.create_stubs({base: ('is_service_enabled',)})
++    @mock.patch.object(neutron.api, 'neutron')
++    def test_quotas_sets_defaults_get_when_service_is_enabled(self, client):
++        filters = {'user': {'tenant_id': 'tenant'}}
++        request = self.mock_rest_request(**{'GET': dict(filters)})
++
++        base.is_service_enabled(request, 'network').AndReturn(True)
++
++        client.tenant_quota_get.return_value = [
++            base.Quota("network", 100),
++            base.Quota("q2", 101)]
++
++        self.mox.ReplayAll()
++
++        response = neutron.DefaultQuotaSets().get(request)
++        self.assertStatusCode(response, 200)
++        self.assertItemsCollectionEqual(response, [
++            {'limit': 100, 'display_name': 'Networks', 'name': 'network'},
++            {'limit': 101, 'display_name': 'Q2', 'name': 'q2'}])
++
++        client.tenant_quota_get.assert_called_once_with(
++            request,
++            request.user.tenant_id)
++
++    @test.create_stubs({neutron.api.base: ('is_service_enabled',)})
++    @mock.patch.object(neutron.api, 'neutron')
++    def test_quota_sets_defaults_get_when_service_is_disabled(self, client):
++        filters = {'user': {'tenant_id': 'tenant'}}
++        request = self.mock_rest_request(**{'GET': dict(filters)})
++
++        base.is_service_enabled(request, 'network').AndReturn(False)
++
++        self.mox.ReplayAll()
++
++        response = neutron.DefaultQuotaSets().get(request)
++        self.assertStatusCode(response, 404)
++        self.assertEqual(response.content.decode('utf-8'),
++                         '"Service Neutron is disabled."')
++
++        client.tenant_quota_get.assert_not_called()
++
++
++class NeutronExtensionsTestCase(test.TestCase):
++    def setUp(self):
++        super(NeutronExtensionsTestCase, self).setUp()
++
++        self._extensions = [n for n in TEST.api_extensions.list()]
++
++    @mock.patch.object(neutron.api, 'neutron')
++    def test_list_extensions(self, nc):
++        extensions = self._extensions
++        request = self.mock_rest_request(**{'GET': {}})
++        nc.list_extensions.return_value = extensions
++        response = neutron.Extensions().get(request)
++        self.assertStatusCode(response, 200)
++        self.assertItemsCollectionEqual(response, TEST.api_extensions.list())
++        nc.list_extensions.assert_called_once_with(request)
++
++
++class NeutronQuotaSetsTestCase(test.TestCase):
++    def setUp(self):
++        super(NeutronQuotaSetsTestCase, self).setUp()
++
++        quota_set = TEST.neutron_quotas.list()[0]
++        self._quota_data = {}
++
++        for quota in quota_set:
++            self._quota_data[quota.name] = quota.limit
++
++    @mock.patch.object(neutron, 'quotas')
++    @mock.patch.object(neutron.api, 'neutron')
++    def test_quotas_extension_patch(self, nc, qc):
++        request = self.mock_rest_request(body='''
++            {"network": "5", "subnet": "5", "port": "50",
++             "router": "5", "floatingip": "50",
++             "security_group": "5", "security_group_rule": "50",
++             "volumes": "5", "cores": "50"}
++        ''')
++        qc.get_disabled_quotas.return_value = []
++        qc.NEUTRON_QUOTA_FIELDS = (n for n in self._quota_data)
++        response = neutron.QuotasSets().patch(request, 'spam123')
++        self.assertStatusCode(response, 204)
++        self.assertEqual(response.content.decode('utf-8'), '')
++        nc.tenant_quota_update.assert_called_once_with(
++            request, 'spam123', network='5',
++            subnet='5', port='50', router='5',
++            floatingip='50', security_group='5',
++            security_group_rule='50')
++
++
+ def mock_obj_to_dict(r):
+     return mock.Mock(**{'to_dict.return_value': r})
+ 
+diff --git a/openstack_dashboard/test/api_tests/nova_rest_tests.py b/openstack_dashboard/test/api_tests/nova_rest_tests.py
+index e65f90c..566e34e 100644
+--- a/openstack_dashboard/test/api_tests/nova_rest_tests.py
++++ b/openstack_dashboard/test/api_tests/nova_rest_tests.py
+@@ -421,3 +421,44 @@ class NovaRestTestCase(test.TestCase):
+         self.assertEqual(response.content.decode('utf-8'), '""')
+ 
+         nc.default_quota_update.assert_not_called()
++
++    @mock.patch.object(nova, 'quotas')
++    @mock.patch.object(nova.api, 'nova')
++    def test_editable_quotas_get(self, nc, qc):
++        disabled_quotas = ['floating_ips', 'fixed_ips',
++                           'security_groups', 'security_group_rules']
++        editable_quotas = ['cores', 'volumes', 'network', 'fixed_ips']
++        qc.get_disabled_quotas.return_value = disabled_quotas
++        qc.QUOTA_FIELDS = editable_quotas
++        request = self.mock_rest_request()
++        response = nova.EditableQuotaSets().get(request)
++        self.assertStatusCode(response, 200)
++        self.assertItemsCollectionEqual(response,
++                                        ['cores', 'volumes', 'network'])
++
++    @mock.patch.object(nova.api, 'nova')
++    @mock.patch.object(nova, 'quotas')
++    def test_quota_sets_patch(self, qc, nc):
++        quota_data = dict(cores='15', instances='5',
++                          ram='50000', metadata_items='150',
++                          injected_files='5',
++                          injected_file_content_bytes='10240',
++                          floating_ips='50', fixed_ips='5',
++                          security_groups='10',
++                          security_group_rules='100')
++
++        request = self.mock_rest_request(body='''
++            {"cores": "15", "ram": "50000", "instances": "5",
++             "metadata_items": "150", "injected_files": "5",
++             "injected_file_content_bytes": "10240", "floating_ips": "50",
++             "fixed_ips": "5", "security_groups": "10" ,
++             "security_group_rules": "100", "volumes": "10"}
++        ''')
++
++        qc.get_disabled_quotas.return_value = []
++        qc.NOVA_QUOTA_FIELDS = (n for n in quota_data)
++        response = nova.QuotaSets().patch(request, 'spam123')
++        self.assertStatusCode(response, 204)
++        self.assertEqual(response.content.decode('utf-8'), '')
++        nc.tenant_quota_update.assert_called_once_with(
++            request, 'spam123', **quota_data)
+-- 
+1.9.1
+

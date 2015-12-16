@@ -1,0 +1,103 @@
+From 89164533c5680608de082e8aa37209343ee468fe Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Wed, 15 Jul 2015 15:24:45 +0000
+Subject: [PATCH] JSCS Cleanup - Fix eslint errors for hz.dashboard.identity
+
+This patch cleans up eslint errors in the angular identity dashboard.
+
+Partially-Implements: blueprint jscs-cleanup
+Change-Id: Ie40b5769d642b9f7981c982ca942d7d3e82067cf
+---
+ .../identity/users/table/table.controller.js          |  3 +--
+ .../identity/users/table/table.controller.spec.js     | 19 ++++++++-----------
+ 2 files changed, 9 insertions(+), 13 deletions(-)
+
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.js
+index 9bcb004..11d8d39 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.js
+@@ -50,13 +50,12 @@
+ 
+     ////////////////////////////////
+ 
+-
+     function init() {
+       // if user has permission
+       // fetch table data and populate it
+       var rules = [['identity', 'identity:list_users']];
+       policy.check({ rules: rules }).success(policySuccess);
+-    };
++    }
+ 
+     function policySuccess(response) {
+       if (response.allowed) {
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.spec.js
+index 2835fdc..3458df3 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.spec.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/users/table/table.controller.spec.js
+@@ -14,7 +14,7 @@
+  * under the License.
+  */
+ 
+-(function(){
++(function() {
+   'use strict';
+ 
+   describe('Identity users table controller', function() {
+@@ -26,25 +26,21 @@
+           callback(policy);
+         }
+       };
+-    };
++    }
+ 
+     function fakePromise() {
+       return {
+         success: function() {}
+       };
+-    };
++    }
+ 
+     function fakeToast() {
+       return {
+         add: function(type, msg) {}
+       };
+-    };
++    }
+ 
+-    var controller;
+-    var toastService;
+-    var policyAPI;
+-    var keystoneAPI;
+-    var staticUrl;
++    var controller, toastService, policyAPI, keystoneAPI, staticUrl;
+ 
+     ///////////////////////
+ 
+@@ -56,7 +52,7 @@
+     beforeEach(module('hz.dashboard'));
+     beforeEach(module('hz.dashboard.identity'));
+     beforeEach(module('hz.dashboard.identity.users'));
+-    beforeEach(inject(function($injector){
++    beforeEach(inject(function($injector) {
+ 
+       toastService = $injector.get('horizon.framework.widgets.toast.service');
+       policyAPI = $injector.get('horizon.openstack-service-api.policy');
+@@ -70,7 +66,7 @@
+       spyOn(keystoneAPI, 'getCurrentUserSession').and.callFake(fakePromise);
+     }));
+ 
+-    function createController(){
++    function createController() {
+       return controller('identityUsersTableController', {
+         toast: toastService,
+         policyAPI: policyAPI,
+@@ -101,4 +97,5 @@
+     });
+ 
+   });
++
+ })();
+-- 
+1.9.1
+

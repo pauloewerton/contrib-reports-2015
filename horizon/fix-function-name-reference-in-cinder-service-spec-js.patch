@@ -1,0 +1,31 @@
+From c334e3c5b8aab2d0e5de2cd18a3ee81d1e93d3b8 Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Thu, 18 Jun 2015 14:53:44 +0000
+Subject: [PATCH] Fix function name reference in cinder.service.spec.js
+
+This patch fixes a typo when referencing tested function names
+in the it block that iterates over the tests array, so the
+correct names are displayed in Jasmine spec runner.
+
+Change-Id: I2685272063b1a599d0c4356e234a779c63d099e1
+Closes-Bug: #1466543
+---
+ openstack_dashboard/static/openstack-service-api/cinder.service.spec.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/openstack_dashboard/static/openstack-service-api/cinder.service.spec.js b/openstack_dashboard/static/openstack-service-api/cinder.service.spec.js
+index 2e049e0..4119278 100644
+--- a/openstack_dashboard/static/openstack-service-api/cinder.service.spec.js
++++ b/openstack_dashboard/static/openstack-service-api/cinder.service.spec.js
+@@ -65,7 +65,7 @@
+ 
+     // Iterate through the defined tests and apply as Jasmine specs.
+     angular.forEach(tests, function(params) {
+-      it('defines the ' + params.name + ' call properly', function() {
++      it('defines the ' + params.func + ' call properly', function() {
+         var callParams = [apiService, service, toastService, params];
+         window.apiTest.testCall.apply(this, callParams);
+       });
+-- 
+1.9.1
+

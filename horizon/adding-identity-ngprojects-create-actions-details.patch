@@ -1,0 +1,1130 @@
+From f363c5ef02c0719c7fe00503df7765d45e5dcd5d Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Wed, 12 Aug 2015 12:46:49 +0000
+Subject: [PATCH] Adding Identity NGProjects Create Action - Details
+
+This patch adds the create button and action to the
+angular identity projects panel. Only the details step
+is added here, subsequent patches address other actions
+and workflow steps.
+
+To test, go to url /identity/ngprojects.
+
+Change-Id: Id0d36cbe0dca0ad7d8bb7174527e014409f2ab8c
+Partially-Implements: blueprint angularize-identity-projects
+---
+ .../actions/projects-create.action.controller.js   |  54 ++++++++
+ .../projects-create.action.controller.spec.js      |  48 +++++++
+ .../actions/projects-create.action.service.js      | 141 +++++++++++++++++++++
+ .../actions/projects-create.action.service.spec.js |  81 ++++++++++++
+ .../actions/projects-create.workflow.service.js    |  52 ++++++++
+ .../projects-create.workflow.service.spec.js       |  37 ++++++
+ .../dashboard/identity/projects/projects.module.js |   7 +
+ .../identity/projects/projects.module.spec.js      |   7 +-
+ .../steps/details/project-details-help.html        |   5 +
+ .../steps/details/project-details.controller.js    |  52 ++++++++
+ .../details/project-details.controller.spec.js     |  46 +++++++
+ .../projects/steps/details/project-details.html    | 113 +++++++++++++++++
+ .../table/projects-table.batch-actions.service.js  |  64 ++++++++++
+ .../projects-table.batch-actions.service.spec.js   |  64 ++++++++++
+ .../projects/table/projects-table.controller.js    |  32 ++++-
+ .../table/projects-table.controller.spec.js        |  28 +++-
+ .../projects-table.create-action.template.html     |   6 +
+ .../identity/projects/table/projects-table.html    |   3 +
+ .../enabled/_3021_identity_ng_projects_panel.py    |   2 +-
+ 19 files changed, 831 insertions(+), 11 deletions(-)
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.spec.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.spec.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.spec.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details-help.html
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.spec.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.html
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.spec.js
+ create mode 100644 openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.create-action.template.html
+
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.js
+new file mode 100644
+index 0000000..ef3afa2
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.js
+@@ -0,0 +1,54 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.dashboard.identity.projects')
++    .controller('IdentityProjectsCreateController', IdentityProjectsCreateController);
++
++  IdentityProjectsCreateController.$inject = [
++    '$modalInstance',
++    '$scope',
++    'submit',
++    'workflow'
++  ];
++
++  /**
++   * @ngdoc controller
++   * @name IdentityProjectsCreateController
++   * @description Controller for the create project modal wizard.
++   */
++  function IdentityProjectsCreateController($modalInstance, $scope, submit, workflow) {
++    // modal wizard properties still need to be defined in $scope
++    /* eslint-disable angular/ng_controller_as */
++    $scope.cancel = cancel;
++    $scope.close = close;
++    $scope.submit = submit;
++    $scope.workflow = workflow;
++    /* eslint-enable angular/ng_controller_as */
++
++    //////////////////////
++
++    function cancel() {
++      $modalInstance.dismiss('cancel');
++    }
++
++    function close() {
++      $modalInstance.close();
++    }
++  }
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.spec.js
+new file mode 100644
+index 0000000..dc4fb14
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.controller.spec.js
+@@ -0,0 +1,48 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe('Identity projects create action controller', function() {
++    var $scope;
++    var modalCalls = ['close', 'dismiss'];
++    var $modalInstance = jasmine.createSpyObj('$modalInstance', modalCalls);
++
++    beforeEach(module('horizon.dashboard.identity.projects'));
++
++    beforeEach(inject(function($controller, $rootScope) {
++      $scope = $rootScope.$new();
++      $controller('IdentityProjectsCreateController', {
++        $modalInstance: $modalInstance,
++        $scope: $scope,
++        submit: {api: 'someapi'},
++        workflow: {steps: 'somestep'}
++      });
++    }));
++
++    it('should inject and assign workflow and submit', function() {
++      expect($scope.workflow.steps).toEqual('somestep');
++      expect($scope.submit.api).toEqual('someapi');
++    });
++
++    it('should forward call to $modalInstance on close and cancel', function() {
++      $scope.close();
++      $scope.cancel();
++      expect($modalInstance.close).toHaveBeenCalled();
++      expect($modalInstance.dismiss).toHaveBeenCalledWith('cancel');
++    });
++  });
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.js
+new file mode 100644
+index 0000000..0f80742
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.js
+@@ -0,0 +1,141 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.dashboard.identity.projects')
++    .factory('IdentityProjectsCreateAction', IdentityProjectsCreateAction);
++
++  IdentityProjectsCreateAction.$inject = [
++    '$modal',
++    '$q',
++    'horizon.framework.util.i18n.gettext',
++    'horizon.framework.widgets.toast.service',
++    'horizon.app.core.openstack-service-api.keystone',
++    'horizon.dashboard.identity.projects.events',
++    'IdentityProjectsCreateWorkflow'
++  ];
++
++  /**
++   * @ngdoc factory
++   * @name IdentityProjectsCreateAction
++   * @description A service to open the Create Project modal wizard.
++   */
++  function IdentityProjectsCreateAction(
++    $modal,
++    $q,
++    gettext,
++    toast,
++    keystone,
++    events,
++    workflow
++  ) {
++
++    var scope, contextProjects;
++
++    var messages = {
++      projectSuccess: gettext('Project %s was successfully created.'),
++      nameUsed: gettext('Project name %s is already used.')
++    };
++
++    var model = {
++      project: {}
++    };
++
++    var service = {
++      initScope: initScope,
++      open: open,
++      submit: submit,
++      events: {
++        createSuccess: events.createSuccess
++      }
++    };
++
++    return service;
++
++    ////////////////////
++
++    function initScope($scope) {
++      var createWatch = $scope.$on(events.projectChanged, onProjectChange);
++      $scope.$on('$destroy', destroy);
++
++      scope = $scope;
++
++      function destroy() {
++        createWatch();
++      }
++    }
++
++    function onProjectChange(evt, project) {
++      model.project = project;
++      evt.stopPropagation();
++    }
++
++    ////////////////////
++
++    function open(projects) {
++      contextProjects = projects;
++
++      var options = {
++        backdrop: 'static',
++        controller: 'IdentityProjectsCreateController as createCtrl',
++        scope: scope,
++        template: '<wizard></wizard>',
++        windowClass: 'modal-dialog-wizard',
++        resolve: {
++          submit: function getSubmit() { return submit; },
++          workflow: function getWorkflow() { return workflow; }
++        }
++      };
++
++      $modal.open(options);
++    }
++
++    function submit() {
++      var nameExists = false;
++
++      angular.forEach(contextProjects, function forEach(project) {
++        if (project.name === model.project.name) {
++          nameExists = true;
++        }
++      });
++
++      if (!nameExists) {
++        return keystone.createProject(model.project)
++                   .then(onCreateProjectSuccess)
++                   .then(subflows);
++      } else {
++        toast.add('error', interpolate(messages.nameUsed, [model.project.name]));
++        return $q.reject();
++      }
++    }
++
++    ////////////////////
++
++    function onCreateProjectSuccess(response) {
++      model.project = response.data;
++      toast.add('success', interpolate(messages.projectSuccess, [model.project.name]));
++      scope.$emit(events.createSuccess, model.project);
++    }
++
++    function subflows() {
++      // Members, Groups and Quota sublows will be triggered here
++      // in later patches. The promise should resolve nonetheless.
++      return $q.when();
++    }
++  }
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.spec.js
+new file mode 100644
+index 0000000..fd49009
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.action.service.spec.js
+@@ -0,0 +1,81 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe('Identity Projects create action service', function() {
++    var $q, $scope, service, events;
++
++    var project = {id: '123', name: 'project3'};
++    var response = {data: project};
++    var promise = {
++      defer: angular.noop,
++      all: function() { return this; },
++      success: function(callback) {
++        callback(response);
++        return this;
++      },
++      then: function(callback) {
++        callback(response);
++        return this;
++      }
++    };
++
++    var $modal = jasmine.createSpyObj('$modal', ['open']);
++    var toast = jasmine.createSpyObj('toast', ['add']);
++    var keystone = jasmine.createSpyObj('keystone', ['createProject']);
++    keystone.createProject.and.returnValue(promise);
++
++    beforeEach(module('horizon.dashboard.identity.projects'));
++
++    beforeEach(module(function($provide) {
++      spyOn(window, 'interpolate').and.callFake(function() { return ''; });
++      $provide.value('$modal', $modal);
++      $provide.value('horizon.app.core.openstack-service-api.keystone', keystone);
++      $provide.value('horizon.framework.util.i18n.gettext', angular.noop);
++      $provide.value('horizon.framework.widgets.toast.service', toast);
++      $provide.value('IdentityProjectsCreateWorkflow', {});
++    }));
++
++    beforeEach(inject(function($injector) {
++      $q = $injector.get('$q');
++      spyOn($q, 'when').and.callThrough();
++      spyOn($q, 'reject').and.callThrough();
++
++      $scope = $injector.get('$rootScope').$new();
++      spyOn($scope, '$emit').and.callThrough();
++
++      events = $injector.get('horizon.dashboard.identity.projects.events');
++      service = $injector.get('IdentityProjectsCreateAction');
++      service.initScope($scope);
++    }));
++
++    it('should call keystone createProject on submit', function() {
++      $scope.$emit(events.projectChanged, project);
++      service.submit();
++      expect($scope.$emit).toHaveBeenCalled();
++      expect(keystone.createProject).toHaveBeenCalledWith(project);
++      expect(toast.add).toHaveBeenCalledWith('success', jasmine.any(String));
++    });
++
++    it('should have a handler for the createdProject event', function() {
++      expect(events.projectChanged).toBeDefined();
++      /* eslint-disable angular/ng_no_private_call */
++      expect($scope.$$listeners[events.projectChanged]).toBeDefined();
++      /* eslint-enable angular/ng_no_private_call */
++    });
++  });
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.js
+new file mode 100644
+index 0000000..0f46bdc
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.js
+@@ -0,0 +1,52 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.dashboard.identity.projects')
++    .factory('IdentityProjectsCreateWorkflow', IdentityProjectsCreateWorkflow);
++
++  IdentityProjectsCreateWorkflow.$inject = [
++    'horizon.app.core.workflow.factory',
++    'horizon.framework.util.i18n.gettext',
++    'horizon.dashboard.identity.projects.basePath'
++  ];
++
++  /**
++   * @ngdoc service
++   * @name IdentityProjectsWorkflowService
++   * @description Provides the steps to the create project workflow.
++   */
++  function IdentityProjectsCreateWorkflow(workflowService, gettext, basePath) {
++    var path = basePath + 'steps/';
++
++    var workflow = workflowService({
++      title: gettext('Create Project'),
++      btnText: {finish: gettext('Create Project')},
++      steps: [
++        {
++          title: gettext('Project Details'),
++          templateUrl: path + 'details/project-details.html',
++          helpUrl: path + 'details/project-details-help.html',
++          formName: 'identityProjectsDetailsForm'
++        }
++      ]
++    });
++
++    return workflow;
++  }
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.spec.js
+new file mode 100644
+index 0000000..a2d60b9
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/actions/projects-create.workflow.service.spec.js
+@@ -0,0 +1,37 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe('Identity projects create workflow', function() {
++    var createWorkflow;
++
++    beforeEach(module('horizon.dashboard.identity.projects'));
++    beforeEach(module('horizon.app.core'));
++    beforeEach(module('horizon.framework'));
++    beforeEach(module(function($provide) {
++      $provide.value('horizon.framework.util.i18n.gettext', angular.noop);
++    }));
++
++    beforeEach(inject(function($injector) {
++      createWorkflow = $injector.get('IdentityProjectsCreateWorkflow');
++    }));
++
++    it('should have defined steps', function() {
++      expect(Object.keys(createWorkflow.steps).length).toBeGreaterThan(0);
++    });
++  });
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.js
+index ff58c08..78d6d3e 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.js
+@@ -33,7 +33,14 @@
+ 
+   function config($provide, $windowProvider) {
+     var path = $windowProvider.$get().STATIC_URL + 'dashboard/identity/projects/';
++
++    var events = {
++      projectChanged: 'horizon.dashboard.identity.projects.events.PROJECT_CHANGED',
++      createSuccess: 'horizon.dashboard.identity.projects.events.CREATE_SUCCESS'
++    };
++
+     $provide.constant('horizon.dashboard.identity.projects.basePath', path);
++    $provide.value('horizon.dashboard.identity.projects.events', events);
+   }
+ 
+ })();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.spec.js
+index 9635266..4cfd5a8 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.spec.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/projects.module.spec.js
+@@ -22,18 +22,23 @@
+   });
+ 
+   describe('Identity projects base path constant', function() {
+-    var identityProjectsBasePath, staticUrl;
++    var identityProjectsBasePath, identityProjectsEvents, staticUrl;
+ 
+     beforeEach(module('horizon.dashboard.identity'));
+     beforeEach(module('horizon.dashboard.identity.projects'));
+     beforeEach(inject(function($injector) {
+       identityProjectsBasePath = $injector.get('horizon.dashboard.identity.projects.basePath');
++      identityProjectsEvents = $injector.get('horizon.dashboard.identity.projects.events');
+       staticUrl = $injector.get('$window').STATIC_URL;
+     }));
+ 
+     it('should equal to "/static/dashboard/identity/projects/"', function() {
+       expect(identityProjectsBasePath).toEqual(staticUrl + 'dashboard/identity/projects/');
+     });
++
++    it('should define action events', function() {
++      expect(identityProjectsEvents).toBeDefined();
++    });
+   });
+ 
+ })();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details-help.html b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details-help.html
+new file mode 100644
+index 0000000..ae9eb34
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details-help.html
+@@ -0,0 +1,5 @@
++<div translate>
++  Create a new project and set related properties.
++  To select members for the project with respective roles,
++  proceed to the next step.
++</div>
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.js
+new file mode 100644
+index 0000000..619d665
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.js
+@@ -0,0 +1,52 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.dashboard.identity.projects')
++    .controller('IdentityProjectsDetailsController', IdentityProjectsDetailsController);
++
++  IdentityProjectsDetailsController.$inject = [
++    '$scope',
++    'horizon.dashboard.identity.projects.events'
++  ];
++
++  /**
++    * @ngdoc controller
++    * @name IdentityProjectsDetailsController
++    * @description
++    * This controller is used for creating and updating project details.
++   */
++  function IdentityProjectsDetailsController($scope, events) {
++    var ctrl = this;
++    ctrl.project = {enabled: true};
++
++    $scope.$watchCollection(watchProject, handleProjectChange);
++
++    /////////////////////////
++
++    function watchProject() {
++      return ctrl.project;
++    }
++
++    function handleProjectChange(newValue, oldValue) {
++      if (newValue !== oldValue) {
++        $scope.$emit(events.projectChanged, newValue);
++      }
++    }
++  }
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.spec.js
+new file mode 100644
+index 0000000..b9e4949
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.controller.spec.js
+@@ -0,0 +1,46 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe('Identity Projects details controller', function() {
++    var $scope, ctrl;
++
++    beforeEach(module('horizon.dashboard.identity.projects'));
++
++    beforeEach(inject(function($controller, $rootScope) {
++      $scope = $rootScope.$new();
++
++      ctrl = $controller('IdentityProjectsDetailsController', {
++        $scope: $scope,
++        events: {}
++      });
++    }));
++
++    it('should instanciante an enabled project on load', function() {
++      expect(ctrl.project.enabled).toBeTruthy();
++    });
++
++    it('should broadcast event when project changes', function() {
++      spyOn($scope, '$emit');
++      $scope.$apply();
++
++      ctrl.project = {enabled: false};
++      $scope.$apply();
++      expect($scope.$emit).toHaveBeenCalled();
++    });
++  });
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.html b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.html
+new file mode 100644
+index 0000000..3ee16e0
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/steps/details/project-details.html
+@@ -0,0 +1,113 @@
++<div ng-controller="IdentityProjectsDetailsController as detailsCtrl">
++  <h1 translate>Project Details</h1>
++
++  <div class="content">
++    <div class="subtitle" translate>Define the characteristics of a project.</div>
++
++    <div class="clearfix">
++      <!--
++        Project name input (required):
++        create-mode: show
++        edit-mode: show
++      -->
++      <div class="row">
++        <div class="col-md-8">
++          <div class="row form-group">
++            <div class="col-md-5">
++              <div class="form-field required"
++                   ng-class="{'has-error': identityProjectsDetailsForm.name.$invalid &&
++                                           identityProjectsDetailsForm.name.$dirty}">
++                <label class="control-label required"
++                       for="identityProjectsDetailsForm-name"
++                       translate>
++                  Project Name
++                </label>
++
++                <input type="text"
++                       id="identityProjectsDetailsForm-name"
++                       name="name"
++                       class="form-control"
++                       ng-model="detailsCtrl.project.name"
++                       ng-maxlength="64"
++                       placeholder="{$ 'Enter a project name' | translate $}"
++                       required>
++
++                <p class="help-block alert alert-danger"
++                   ng-show="identityProjectsDetailsForm.name.$error.required &&
++                            identityProjectsDetailsForm.name.$dirty"
++                            translate>
++                  A project name is required.
++                </p>
++
++                <p class="help-block alert alert-danger"
++                   ng-show="identityProjectsDetailsForm.name.$error.maxlength"
++                   translate>
++                  Project name max length is 64 characters.
++                </p>
++              </div><!-- form-field -->
++            </div><!-- col-sm-12 -->
++
++            <!--
++              Project description input (optional)
++              create-mode: show
++              edit-mode: show
++            -->
++            <div class="col-md-5">
++              <div class="form-field">
++                <label class="control-label"
++                       for="identityProjectsDetailsForm-description"
++                       translate>
++                  Project Description
++                </label>
++
++                <input type="text"
++                       id="identityProjectsDetailsForm-description"
++                       name="description"
++                       class="form-control"
++                       ng-model="detailsCtrl.project.description"
++                       ng-maxlength="255"
++                       placeholder="{$ 'Enter a project description (optional)' | translate $}">
++              </div><!-- form-field -->
++            </div><!-- col-sm-12 -->
++          </div><!-- form-group -->
++        </div><!-- col-xs-12 -->
++      </div><!-- end row -->
++
++      <!--
++        Project enabled input (optional)
++        create-mode: show
++        edit-mode: show
++      -->
++      <div class="row">
++        <div class="col-md-8">
++          <div class="form-group">
++            <label class="control-label" translate>Enabled</label>
++
++            <div class="form-field">
++              <div class="btn-group">
++                <label class="btn btn-toggle"
++                       btn-radio="true"
++                       ng-model="detailsCtrl.project.enabled"
++                       ng-class="detailsCtrl.isCurrentProject ? 'disabled' : ''"
++                       translate>
++                  Yes
++                </label>
++                <label class="btn btn-toggle"
++                       btn-radio="false"
++                       ng-model="detailsCtrl.project.enabled"
++                       ng-class="detailsCtrl.isCurrentProject ? 'disabled' : ''"
++                       translate>
++                  No
++                </label>
++              </div><!-- btn-group -->
++
++              <p class="help-block" ng-show="detailsCtrl.isCurrentProject" translate>
++                You cannot disable your current project
++              </p>
++            </div><!-- form-field -->
++          </div><!-- form-group -->
++        </div><!-- col-xs-12 -->
++      </div><!-- row -->
++    </div> <!-- end clearfix -->
++  </div> <!-- end content -->
++</div> <!-- end controller -->
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.js
+new file mode 100644
+index 0000000..cd555c4
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.js
+@@ -0,0 +1,64 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.dashboard.identity.projects')
++    .factory('IdentityProjectsTableBatchActions', IdentityProjectsTableBatchActions);
++
++  IdentityProjectsTableBatchActions.$inject = [
++    'horizon.framework.util.i18n.gettext',
++    'horizon.app.core.openstack-service-api.policy',
++    'horizon.dashboard.identity.projects.basePath',
++    'IdentityProjectsCreateAction'
++  ];
++
++  /**
++   * @ngdoc factory
++   * @name IdentityProjectsTableBatchActions
++   * @description A list of table batch actions.
++   */
++  function IdentityProjectsTableBatchActions(gettext, policy, basePath, createAction) {
++
++    var actions = [
++      {
++        permissions: policy.ifAllowed({rules: [['identity', 'identity:create_project']]}),
++        template: {
++          url: basePath + 'table/projects-table.create-action.template.html'
++        }
++      }
++    ];
++
++    var service = {
++      initScope: initScope,
++      actions: actions,
++      create: createAction
++    };
++
++    return service;
++
++    //////////////////////
++
++    function initScope(scope) {
++      angular.forEach(service, function forEach(action) {
++        if (action.initScope) {
++          action.initScope(scope.$new());
++        }
++      });
++    }
++  }
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.spec.js
+new file mode 100644
+index 0000000..0cffbab
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.batch-actions.service.spec.js
+@@ -0,0 +1,64 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe('Identity Projects table batch actions service', function() {
++    var $scope, policy, service;
++    var fakeAction = {initScope: angular.noop};
++
++    function fakePolicy() {
++      return {
++        then: function fakePromise(callback) {
++          return callback({data: {allowed: true}});
++        }
++      };
++    }
++
++    beforeEach(module('horizon.framework'));
++    beforeEach(module('horizon.app.core.openstack-service-api'));
++    beforeEach(module('horizon.dashboard.identity.projects'));
++    beforeEach(module(function($provide) {
++      $provide.value('IdentityProjectsCreateAction', fakeAction);
++    }));
++
++    beforeEach(inject(function($injector) {
++      $scope = $injector.get('$rootScope').$new();
++      spyOn($scope, '$new').and.callThrough();
++
++      policy = $injector.get('horizon.app.core.openstack-service-api.policy');
++      spyOn(policy, 'ifAllowed').and.callFake(fakePolicy);
++
++      service = $injector.get('IdentityProjectsTableBatchActions');
++    }));
++
++    it('should have initScope defined', function() {
++      expect(service.initScope).toBeDefined();
++    });
++
++    it('should initScope on actions', function() {
++      var numOfActions = Object.keys(service).length - 2;
++      service.initScope($scope);
++      expect($scope.$new.calls.count()).toEqual(numOfActions);
++    });
++
++    it('should define the create and delete batch actions', function() {
++      var createProjectRules = {rules: [['identity', 'identity:create_project']]};
++      expect(service.actions.length).toBeGreaterThan(0);
++      expect(policy.ifAllowed).toHaveBeenCalledWith(createProjectRules);
++    });
++  });
++
++})();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.js
+index 1f08093..4846da4 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.js
+@@ -21,10 +21,13 @@
+ 
+   IdentityProjectsTableController.$inject = [
+     '$q',
++    '$scope',
+     'horizon.framework.util.i18n.gettext',
+     'horizon.framework.widgets.toast.service',
+     'horizon.app.core.openstack-service-api.keystone',
+-    'horizon.app.core.openstack-service-api.policy'
++    'horizon.app.core.openstack-service-api.policy',
++    'horizon.dashboard.identity.projects.events',
++    'IdentityProjectsTableBatchActions'
+   ];
+ 
+   /**
+@@ -35,7 +38,17 @@
+    * Encapsulates all data and actions associated to
+    * the main projects view.
+    */
+-  function IdentityProjectsTableController($q, gettext, toast, keystone, policy) {
++  function IdentityProjectsTableController(
++    $q,
++    $scope,
++    gettext,
++    toast,
++    keystone,
++    policy,
++    events,
++    batchActions
++  ) {
++
+     var ctrl = this;
+ 
+     ctrl.displayedProjects = [];
+@@ -43,6 +56,12 @@
+     ctrl.projects = [];
+     ctrl.userSession = {};
+ 
++    ctrl.batchActions = batchActions;
++    ctrl.batchActions.initScope($scope);
++
++    var createWatcher = $scope.$on(events.createSuccess, onCreateSuccess);
++    $scope.$on('$destroy', destroy);
++
+     init();
+ 
+     ////////////////////////////////
+@@ -91,6 +110,15 @@
+     function setProjects(response) {
+       ctrl.projects = response.data.items;
+     }
++
++    function onCreateSuccess(evt, newProject) {
++      ctrl.projects.push(newProject);
++      evt.stopPropagation();
++    }
++
++    function destroy() {
++      createWatcher();
++    }
+   }
+ 
+ })();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.spec.js
+index 75e7f36..e6a6cf1 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.spec.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.controller.spec.js
+@@ -16,7 +16,7 @@
+   'use strict';
+ 
+   describe('Identity projects table controller', function() {
+-    var $controller, $scope, keystone, policy, toast;
++    var $controller, $scope, keystone, policy, toast, events;
+ 
+     var fakeUser = {
+       id: '01',
+@@ -76,6 +76,10 @@
+     beforeEach(module('horizon.app.core'));
+     beforeEach(module('horizon.framework'));
+     beforeEach(module('horizon.dashboard.identity'));
++    beforeEach(module(function($provide) {
++      var mockAction = {initScope: angular.noop};
++      $provide.value('IdentityProjectsTableBatchActions', mockAction);
++    }));
+ 
+     beforeEach(inject(function($injector) {
+       $controller = $injector.get('$controller');
+@@ -91,10 +95,12 @@
+ 
+       toast = $injector.get('horizon.framework.widgets.toast.service');
+       spyOn(toast, 'add').and.callFake(fakeToast);
++
++      events = $injector.get('horizon.dashboard.identity.projects.events');
+     }));
+ 
+     it('should set keystoneV3Enabled to false by default', function() {
+-      var tableCtrl = $controller('IdentityProjectsTableController');
++      var tableCtrl = $controller('IdentityProjectsTableController', {$scope: $scope});
+       $scope.$apply();
+       expect(keystone.getVersion).toHaveBeenCalled();
+       expect(tableCtrl.keystoneV3Enabled).toBeFalsy();
+@@ -102,21 +108,21 @@
+ 
+     it('should set keystoneV3Enabled to true if keystone version 3 is enabled', function() {
+       fakeVersion.version = 3;
+-      var tableCtrl = $controller('IdentityProjectsTableController');
++      var tableCtrl = $controller('IdentityProjectsTableController', {$scope: $scope});
+       $scope.$apply();
+       expect(keystone.getVersion).toHaveBeenCalled();
+       expect(tableCtrl.keystoneV3Enabled).toBeTruthy();
+     });
+ 
+     it('should retrieve current user session', function() {
+-      var tableCtrl = $controller('IdentityProjectsTableController');
++      var tableCtrl = $controller('IdentityProjectsTableController', {$scope: $scope});
+       $scope.$apply();
+       expect(keystone.getCurrentUserSession).toHaveBeenCalled();
+       expect(tableCtrl.userSession).toEqual(fakeUser);
+     });
+ 
+     it('should retrieve all projects if policy passes', function() {
+-      var tableCtrl = $controller('IdentityProjectsTableController');
++      var tableCtrl = $controller('IdentityProjectsTableController', {$scope: $scope});
+       $scope.$apply();
+       expect(policy.check).toHaveBeenCalledWith(rulesAll);
+       expect(keystone.getProjects).toHaveBeenCalled();
+@@ -140,7 +146,7 @@
+         };
+       });
+ 
+-      var tableCtrl = $controller('IdentityProjectsTableController');
++      var tableCtrl = $controller('IdentityProjectsTableController', {$scope: $scope});
+       $scope.$apply();
+       expect(policy.check).toHaveBeenCalledWith(rulesUser);
+       expect(keystone.getProjects).toHaveBeenCalledWith({
+@@ -151,13 +157,21 @@
+ 
+     it('should not retrieve projects if policy fails', function() {
+       fakePass.allowed = false;
+-      var tableCtrl = $controller('IdentityProjectsTableController');
++      var tableCtrl = $controller('IdentityProjectsTableController', {$scope: $scope});
+       $scope.$apply();
+       expect(policy.check).toHaveBeenCalled();
+       expect(toast.add).toHaveBeenCalled();
+       expect(keystone.getProjects).not.toHaveBeenCalled();
+       expect(tableCtrl.projects).toEqual([]);
+     });
++
++    it('should have a handler for the createSuccess event', function() {
++      $controller('IdentityProjectsTableController', {$scope: $scope});
++      expect(events.createSuccess).toBeDefined();
++      /* eslint-disable angular/ng_no_private_call */
++      expect($scope.$$listeners[events.createSuccess]).toBeDefined();
++      /* eslint-enable angular/ng_no_private_call */
++    });
+   });
+ 
+ })();
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.create-action.template.html b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.create-action.template.html
+new file mode 100644
+index 0000000..e72ea49
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.create-action.template.html
+@@ -0,0 +1,6 @@
++<action action-classes="'btn btn-default btn-sm'"
++        callback="tableCtrl.batchActions.create.open"
++        item="tableCtrl.projects">
++  <span class="fa fa-plus-square"></span>
++  <translate>Create Project</translate>
++</action>
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.html b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.html
+index fc3acc5..be4d87a 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.html
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/projects/table/projects-table.html
+@@ -12,6 +12,9 @@
+     <tr>
+       <th colspan="100" class="search-header">
+         <hz-search-bar group-classes="input-group-sm" icon-classes="fa-search">
++          <actions allowed-actions="tableCtrl.batchActions.actions"
++                   action-list-type="batch">
++          </actions>
+         </hz-search-bar>
+       </th>
+     </tr>
+diff --git a/openstack_dashboard/enabled/_3021_identity_ng_projects_panel.py b/openstack_dashboard/enabled/_3021_identity_ng_projects_panel.py
+index f08a1e0..a86277f 100644
+--- a/openstack_dashboard/enabled/_3021_identity_ng_projects_panel.py
++++ b/openstack_dashboard/enabled/_3021_identity_ng_projects_panel.py
+@@ -22,7 +22,7 @@ PANEL_GROUP = 'default'
+ PANEL = 'ngprojects'
+ 
+ # If set to True, this settings file will not be added to the settings.
+-DISABLED = True
++DISABLED = False
+ 
+ # Python panel class of the PANEL to be added.
+ ADD_PANEL = 'openstack_dashboard.dashboards.identity.ngprojects.panel.NGProjects' #flake8: noqa
+-- 
+1.9.1
+

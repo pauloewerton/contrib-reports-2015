@@ -1,0 +1,58 @@
+From 859195d44c6b7b956f9cac402b0a24bbd0aa1d0a Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton <pauloewerton@lsd.ufcg.edu.br>
+Date: Wed, 9 Sep 2015 14:26:18 +0000
+Subject: [PATCH] Adding tests for ng identity basePath constant
+
+This patch improves test coverage for the agular identity
+dashboard by adding tests for the basePath constant definition.
+A minor consistency issue in the module file is also addressed.
+
+Change-Id: I97d0ce728e44777635bf6590e312fb00d1684582
+Partially-Implements: blueprint angularize-identity-tables
+---
+ .../identity/static/dashboard/identity/identity.module.js  |  5 ++++-
+ .../static/dashboard/identity/identity.module.spec.js      | 14 ++++++++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.js
+index 38d526e..4ca4b38 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.js
+@@ -31,7 +31,10 @@
+     ])
+     .config(config);
+ 
+-  config.$inject = ['$provide', '$windowProvider'];
++  config.$inject = [
++    '$provide',
++    '$windowProvider'
++  ];
+ 
+   function config($provide, $windowProvider) {
+     var path = $windowProvider.$get().STATIC_URL + 'dashboard/identity/';
+diff --git a/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.spec.js b/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.spec.js
+index 7785de3..9f3f8a6 100644
+--- a/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.spec.js
++++ b/openstack_dashboard/dashboards/identity/static/dashboard/identity/identity.module.spec.js
+@@ -22,4 +22,18 @@
+     });
+   });
+ 
++  describe('horizon.dashboard.identity.basePath constant', function() {
++    var identityBasePath, staticUrl;
++
++    beforeEach(module('horizon.dashboard.identity'));
++    beforeEach(inject(function($injector) {
++      identityBasePath = $injector.get('horizon.dashboard.identity.basePath');
++      staticUrl = $injector.get('$window').STATIC_URL;
++    }));
++
++    it('should equal to "/static/dashboard/identity/"', function() {
++      expect(identityBasePath).toEqual(staticUrl + 'dashboard/identity/');
++    });
++  });
++
+ })();
+-- 
+1.9.1
+

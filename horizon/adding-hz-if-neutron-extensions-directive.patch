@@ -1,0 +1,192 @@
+From 8456608857d28fa70699d4986d3c19d9dd7f85dc Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton <pauloewerton@lsd.ufcg.edu.br>
+Date: Wed, 2 Dec 2015 15:08:02 +0000
+Subject: [PATCH] Adding hz-if-neutron-extensions directive
+
+We should add neutron extensions to angular cloud services
+in a similar fashion as that of cinder and nova services.
+
+Change-Id: I184f520568a807ae5948e73eed33023787b204d8
+Closes-Bug: 1522135
+---
+ .../hz-if-neutron-extensions.directive.js          | 74 +++++++++++++++++++
+ .../hz-if-neutron-extensions.directive.spec.js     | 86 ++++++++++++++++++++++
+ 2 files changed, 160 insertions(+)
+ create mode 100644 openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.js
+ create mode 100644 openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.spec.js
+
+diff --git a/openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.js b/openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.js
+new file mode 100644
+index 0000000..e1a6a72
+--- /dev/null
++++ b/openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.js
+@@ -0,0 +1,74 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  angular
++    .module('horizon.app.core.cloud-services')
++    .directive('hzIfNeutronExtensions', hzNeutronExtensions);
++
++  hzNeutronExtensions.$inject = [
++    'hzPromiseToggleTemplateDirective',
++    'horizon.app.core.openstack-service-api.neutronExtensions'
++  ];
++
++  /**
++   * @ngdoc directive
++   * @name hz.api:directive:hzIfNeutronExtensions
++   * @module hz.api
++   * @description
++   *
++   * Add this directive to any element containing content which should
++   * only be evaluated when the specified neutron extensions are enabled by
++   * the neutron servers in the currently selected region. If the neutron extensions
++   * are enabled, the content will be evaluated. Otherwise, the content will
++   * not be compiled. In addition, the element and everything contained by
++   * it will be removed completely, leaving a simple HTML comment.
++   *
++   * This is evaluated once per page load. In current horizon, this means
++   * it will get re-evaluated with events like the user opening another panel,
++   * changing logins, or changing their region.
++   *
++   * The hz-if-neutron-extensions attribute may be set to a single extension (String)
++   * or an array of extensions (each one being a String).
++   * All of the following are examples:
++   *
++   * hz-if-neutron-extensions='"Quota management support"'
++   * hz-if-neutron-extensions='["Quota management support"]'
++   * hz-if-neutron-extensions='["Quota management support", "Port binding"]'
++   *
++   * @example
++   *
++   * In the below, if the 'Quota management support' neutron extension is not enabled, then
++   * the div element with hz-if-neutron-extensions and all of the elements inside
++   * of it will be removed and never evaluated by the angular compiler.
++   *
++   ```html
++    <div hz-if-neutron-extensions='"Quota management support"'>
++      <!-- ui code here -->
++    </div>
++   ```
++   */
++  function hzNeutronExtensions(hzPromiseToggleTemplateDirective, neutronExtensions) {
++    return angular.extend(
++      hzPromiseToggleTemplateDirective[0],
++      {
++        singlePromiseResolver: neutronExtensions.ifNameEnabled,
++        name: 'hzIfNeutronExtensions'
++      }
++    );
++  }
++
++})();
+diff --git a/openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.spec.js b/openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.spec.js
+new file mode 100644
+index 0000000..673ed44
+--- /dev/null
++++ b/openstack_dashboard/static/app/core/cloud-services/hz-if-neutron-extensions.directive.spec.js
+@@ -0,0 +1,86 @@
++/**
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++(function() {
++  'use strict';
++
++  describe('horizon.app.core.cloud-services.hzNeutronExtension', function() {
++    var $compile, $scope, deferred, neutronExtensionsAPI;
++
++    var template = [
++      '<div>',
++      '<div hz-if-neutron-extensions=\'\"ext_name\"\'>',
++      '<div class="child-element">',
++      '</div>',
++      '</div>',
++      '</div>'
++    ].join('');
++
++    beforeEach(function() {
++      neutronExtensionsAPI = {
++        ifNameEnabled: function() {
++          return deferred.promise;
++        }
++      };
++
++      spyOn(neutronExtensionsAPI, 'ifNameEnabled').and.callThrough();
++
++      module('horizon.app.core.cloud-services');
++      module('horizon.framework.util.promise-toggle');
++
++      module('horizon.app.core.openstack-service-api', function($provide) {
++        $provide.value(
++          'horizon.app.core.openstack-service-api.neutronExtensions', neutronExtensionsAPI
++        );
++      });
++
++      inject(function(_$compile_, _$q_, _$rootScope_) {
++        $compile = _$compile_;
++        deferred = _$q_.defer();
++        $scope = _$rootScope_.$new();
++      });
++
++    });
++
++    // Please note, this code is primarily intended to verify that the
++    // directive specifies the correct name and that it uses the settings
++    // service API. Testing of the variations on inputs being resolved
++    // are tested in the hz-promise-toggle spec.
++    it('should evaluate child elements when extension is enabled', function() {
++      var element = $compile(template)($scope);
++
++      deferred.resolve();
++
++      expect(element.children().length).toBe(0);
++      expect(neutronExtensionsAPI.ifNameEnabled).toHaveBeenCalledWith('ext_name');
++
++      $scope.$apply();
++      expect(element.children().length).toBe(1);
++    });
++
++    it('should not evaluate child elements when extension is NOT enabled', function() {
++      var element = $compile(template)($scope);
++
++      deferred.reject();
++
++      expect(element.children().length).toBe(0);
++      expect(neutronExtensionsAPI.ifNameEnabled).toHaveBeenCalledWith('ext_name');
++
++      $scope.$apply();
++      expect(element.children().length).toBe(0);
++    });
++
++  });
++
++})();
+-- 
+1.9.1
+

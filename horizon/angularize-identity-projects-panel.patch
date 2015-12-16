@@ -1,0 +1,1495 @@
+From 9038cb57fcce23320f1d9b3c9d0dbe6693e536e8 Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Wed, 6 May 2015 15:08:10 +0000
+Subject: [PATCH] WIP Angularize Identity Projects Panel
+
+This patch applies angularized tables to the
+identity projects panel. To test it, go to url /identity/angularprojects.
+
+Note: for domain info to show properly in the create/edit modal form,
+'OPENSTACK_API_VERSIONS' should be set in REST_API_REQUIRED_SETTINGS in
+local_settings.py.
+
+Partially Implements: blueprint angularize-identity-tables
+
+Co-Authored-By: Erickson Filipe Guedes dos Santos <erickson@lsd.ufcg.edu.br>
+Co-Authored-By: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+
+Change-Id: Ia0a596516d249175e1983f2e09078a4f3ffeb04a
+---
+ horizon/static/angular/table/table.scss            |   2 +-
+ .../identity/projects/templates/projects/form.html | 346 +++++++++++++++++++++
+ .../projects/templates/projects/table.html         | 159 ++++++++++
+ .../dashboards/identity/projects/urls.py           |   5 +
+ openstack_dashboard/enabled/_25_identity.py        |  10 +
+ .../static/dashboard/identity/identity.js          |   5 +-
+ .../static/dashboard/identity/identity.scss        |   3 +-
+ .../identity/projects/actions/create.service.js    |  81 +++++
+ .../projects/actions/create.service.spec.js        |  59 ++++
+ .../identity/projects/actions/edit.service.js      |  88 ++++++
+ .../identity/projects/actions/edit.service.spec.js |  67 ++++
+ .../dashboard/identity/projects/form.ctrl.js       |  65 ++++
+ .../dashboard/identity/projects/form.ctrl.spec.js  | 121 +++++++
+ .../dashboard/identity/projects/projects.module.js |  12 +
+ .../identity/projects/projects.module.spec.js      |   9 +
+ .../dashboard/identity/projects/projects.scss      |  16 +
+ .../dashboard/identity/projects/table.ctrl.js      | 128 ++++++++
+ .../dashboard/identity/projects/table.ctrl.spec.js |  99 ++++++
+ openstack_dashboard/test/jasmine/jasmine_tests.py  |  10 +
+ 19 files changed, 1281 insertions(+), 4 deletions(-)
+ create mode 100644 openstack_dashboard/dashboards/identity/projects/templates/projects/form.html
+ create mode 100644 openstack_dashboard/dashboards/identity/projects/templates/projects/table.html
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/actions/create.service.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/actions/create.service.spec.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.spec.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/form.ctrl.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/form.ctrl.spec.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/projects.module.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/projects.module.spec.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/projects.scss
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/table.ctrl.js
+ create mode 100644 openstack_dashboard/static/dashboard/identity/projects/table.ctrl.spec.js
+
+diff --git a/horizon/static/angular/table/table.scss b/horizon/static/angular/table/table.scss
+index 3884077..bdc5958 100644
+--- a/horizon/static/angular/table/table.scss
++++ b/horizon/static/angular/table/table.scss
+@@ -357,4 +357,4 @@ $em-per-priority: floor($table-col-avg-width / $font-size-base) * 3;
+   .pagination > li > span {
+     cursor: pointer;
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/openstack_dashboard/dashboards/identity/projects/templates/projects/form.html b/openstack_dashboard/dashboards/identity/projects/templates/projects/form.html
+new file mode 100644
+index 0000000..3dd29a7
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/projects/templates/projects/form.html
+@@ -0,0 +1,346 @@
++{% load i18n %}
++
++<!-- Header describing the purpose of this modal form -->
++<div class="modal-header">
++  <h3 class="modal-title">{$ ::formCtrl.context.title $}</h3>
++</div>
++
++<!-- Modal body with project form to be submitted-->
++<form novalidate name="projectsForm" class="form-horizontal">
++  <div class="modal-body clearfix">
++    <!-- Project view form is separated in tabs -->
++    <tabset>
++      <!-- Project information tab -->
++      <tab heading="{$ ::formCtrl.context.infoTab $}" class="required" >
++          <!-- Project information fieldset -->
++          <fieldset>
++
++            <!--
++              Project domain id input
++                create-mode: show
++                edit-mode: show
++            -->
++            <div class="form-group" ng-show="formCtrl.showDomainInfo">
++              <label class="control-label col-sm-3" for="projectDomainId">
++                {% trans "Domain ID" %}
++              </label>
++
++              <div class="col-sm-9">
++                <input type="text"
++                       id="projectDomainId"
++                       name="projectDomainId"
++                       class="form-control"
++                       ng-maxlength="255"
++                       ng-disabled="true"
++                       ng-model="formCtrl.user.user_domain_id">
++              </div>
++            </div>
++
++            <!-- 
++              Project domain name input
++                create-mode: show
++                edit-mode: show
++            -->
++            <div class="form-group" ng-show="formCtrl.showDomainInfo">
++              <label class="control-label col-sm-3" for="projectDomainName">
++                {% trans "Domain Name" %}
++              </label>
++
++              <div class="col-sm-9">
++                <input type="text"
++                       id="projectDomainName"
++                       name="projectDomainName"
++                       class="form-control"
++                       ng-maxlength="255"
++                       ng-disabled="true"
++                       ng-model="formCtrl.user.user_domain_name">
++              </div>
++            </div>
++
++            <!--
++              Project name input (required):
++                create-mode: show
++                edit-mode: show
++            -->
++            <div class="form-group required"
++                 ng-class="{'has-error': form.name.$invalid && form.name.$dirty}">
++              <label class="control-label col-sm-3 required" for="projectName">
++                {% trans "Name" %}
++              </label>
++
++              <div class="col-sm-9">
++                <input type="text"
++                       id="projectName"
++                       name="projectName"
++                       class="form-control"
++                       ng-model="formCtrl.project.name"
++                       ng-maxlength="255"
++                       placeholder="{% trans 'Enter a project name' %}"
++                       required>
++              </div>
++
++              <p class="help-block alert alert-danger"
++                 ng-show="projectsForm.projectName.$error.$required">
++                {% trans "A project name is required." %}
++              </p>
++              <p class="help-bloc alert alert-danger"
++                 ng-show="projectsForm.projectname.$error.$maxlength">
++                {% trans "Project name max length is 255 characters." %}
++              </p>
++            </div>
++
++            <!--
++              Project description input (optional)
++                create-mode: show
++                edit-mode: show
++            -->
++            <div class="form-group">
++              <label class="control-label col-sm-3" for="projectDescription">
++                {% trans "Description" %}
++              </label>
++
++              <div class="col-sm-9">
++                <textarea class="form-control"
++                          rows="4"
++                          id="projectDescription"
++                          name="projectDescription"
++                          ng-model="formCtrl.project.description"
++                          placeholder="{% trans 'Enter a project description (optional).' %}">
++                </textarea>
++              </div>
++            </div>
++
++            <!--
++              Project enabled input (optional)
++                create-mode: show
++                edit-mode: show
++            -->
++            <div class="form-group">
++              <label class="control-label col-sm-3" for="projectEnabled">
++                {% trans "Enabled" %}
++              </label>
++
++              <div class="col-sm-9">
++                <input type="checkbox"
++                       id="projectEnabled"
++                       name="projectEnabled"
++                       class="checkbox"
++                       ng-disabled="formCtrl.isCurrentProject"
++                       ng-model="formCtrl.project.enabled">
++
++                <span class="help-block" ng-show="formCtrl.isCurrentProject">
++                  {% trans "You cannot disable the current project" %}
++                </span>
++              </div>
++            </div>
++          </fieldset>
++      </tab>
++
++      <!-- Project quota tab -->
++      <tab heading="{$ ::formCtrl.context.quotaTab $}" 
++           class="required"
++           ng-hide="true">
++        <!-- Project form quota fieldset -->
++        <fieldset>
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="metadataItems">
++              {% trans "Metadata Items" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="metadataItems"
++                     name="metadataItems"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="vcpus">
++              {% trans "VCPUs" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="vcpus"
++                     name="vcpus"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="instances">
++              {% trans "Instances" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="instances"
++                     name="instances"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="injectedFiles">
++              {% trans "Injected Files" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="injectedFiles"
++                     name="injectedFiles"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="injectedFileContent">
++              {% trans "Injected File Content (Bytes)" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="injectedFileContent"
++                     name="injectedFileContent"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="volumes">
++              {% trans "Volumes" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="volumes"
++                     name="volumes"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="volumeSnapshots">
++              {% trans "Volume Snapshots" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="volumeSnapshots"
++                     name="volumeSnapshots"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="vsTotalSize">
++              {% trans "Total Size of Volumes and Snapshots (GB)" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="vsTotalSize"
++                     name="vsTotalSize"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="ram">
++              {% trans "RAM (MB)" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="ram"
++                     name="ram"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="floatingIPs">
++              {% trans "Floating IPs" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="floatingIPs"
++                     name="floatingIPs"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="fixedIPs">
++              {% trans "Fixed IPs" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="fixedIPs"
++                     name="fixedIPs"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="securityGroups">
++              {% trans "Security Groups" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="securityGroups"
++                     name="securityGroups"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++
++          <div class="form-group required">
++            <label class="control-label col-sm-3" for="sgRules">
++              {% trans "Security Group Rules" %}
++            </label>
++
++            <div class="col-sm-9">
++              <input type="number"
++                     id="sgRules"
++                     name="sgRules"
++                     class="form-control"
++                     ng-model="formCtrl.project.quota">
++            </div>
++          </div>
++        </fieldset>
++      </tab>
++    </tabset>
++  </div>
++</form>
++
++<!-- Modal footer with form submission and cancel buttons -->
++<div class="modal-footer">
++  <button class="btn btn-default secondary"
++          type="button"
++          ng-click="formCtrl.actions.cancel()">
++          {% trans 'Cancel' %}
++  </button>
++ 
++  <button class="btn btn-primary"
++          type="button"
++          ng-disabled="projectsForm.$invalid"
++          ng-click="formCtrl.actions.submit()">
++          {$ ::formCtrl.context.submit $}
++  </button>
++</div>
+diff --git a/openstack_dashboard/dashboards/identity/projects/templates/projects/table.html b/openstack_dashboard/dashboards/identity/projects/templates/projects/table.html
+new file mode 100644
+index 0000000..03997d2
+--- /dev/null
++++ b/openstack_dashboard/dashboards/identity/projects/templates/projects/table.html
+@@ -0,0 +1,159 @@
++{% extends 'base.html' %}
++{% load i18n %}
++{% block title %}{% trans "Projects" %}{% endblock %}
++
++{% block page_header %}
++  {% include "horizon/common/_domain_page_header.html" with title=_("Projects") %}
++{% endblock page_header %}
++
++{% block main %}
++  <table ng-controller="identityProjectsCtrl as ctrl"
++         ng-cloak
++         st-table="ctrl.displayedProjects"
++         st-safe-src="ctrl.projects"
++         hz-table
++         default-sort="name"
++         default-sort-reverse="false"
++         class="table-striped table-rsp table-detail modern">
++
++    <!-- Table head concentrates column headers and actions such as table filtering
++         and the main buttons for creating and deleting projects -->
++    <thead>
++
++      <!-- Table batch actions (create, delete, etc.) -->
++      <tr>
++        <th colspan="100" class="search-header">
++          <search-bar group-classes="input-group-sm" icon-classes="fa-search">
++            <action-list class="btn-addon">
++              <action action-classes="'btn btn-default btn-sm'"
++                      callback="ctrl.actions.create.open">
++                <span class="fa fa-user-plus"></span>
++                {% trans 'Create Project' %}
++              </action>
++            </action-list>
++            <action-list class="btn-addon">
++              <action action-classes="'btn btn-default btn-sm btn-danger'"
++                      disabled="numSelected === 0">
++                <span class="fa fa-trash-o"></span>
++                {% trans 'Delete Projects' %}
++              </action>
++            </action-list>
++          </search-bar>
++        </th>
++      </tr>
++
++      <!-- Table column headers -->
++      <tr>
++        <!-- Checkbox for selecting all projects -->
++        <th class="select-col">
++          <input type="checkbox"
++                 hz-select-all="ctrl.displayedProjects"/>
++        </th>
++        <!-- Expander used for the project detail row -->
++        <th class="expander"></th>
++        <th class="rsp-p1" st-sort="name" st-sort-default="name">{$ ::ctrl.context.header.name $}</th>
++        <th class="rsp-p2" st-sort="description">{$ ::ctrl.context.header.description $}</th>
++        <th class="rsp-p1" st-sort="id">{$ ::ctrl.context.header.projectId $}</th>
++        <th class="rsp-p2 text-center" st-sort="enabled">{$ ::ctrl.context.header.enabled $}</th>
++        <th class="action-col">{$ ::ctrl.context.header.action $}</th>
++      </tr>
++    </thead>
++
++    <tbody>
++      <tr ng-repeat-start="project in ctrl.displayedProjects track by project.id"
++          ng-class="{'st-selected': selected[project.id].checked}">
++        <td class="select-col">
++          <input type="checkbox"
++                 ng-model="selected[project.id].checked"
++                 hz-select="project"/>
++        </td>
++        <td class="expander">
++          <span class="fa fa-chevron-right" hz-expand-detail duration="200"></span>
++        </td>
++        <td class="rsp-p1">{$ project.name $}</td>
++        <td class="rsp-p2">{$ project.description $}</td>
++        <td class="rsp-p1">{$ project.id $}</td>
++        <td class="rsp-p2 text-center">
++          <span ng-show="project.enabled" class="fa fa-check text-success"></span>
++          <span ng-hide="project.enabled" class="fa fa-times text-danger"></span>
++        </td>
++
++        <!-- Menu for individual project actions such as edit, delete,
++             manage members and quota -->
++        <td class="action-col">
++          <action-list dropdown>
++            <action button-type="split-button"
++                    action-classes="'btn btn-default btn-sm'"
++                    item="project"
++                    callback="">
++              {% trans 'Manage Members' %}
++            </action>
++            <menu>
++              <action button-type="menu-item"
++                      item="project"
++                      callback="">
++                {% trans 'Modify Groups' %}
++              </action>
++              <action button-type="menu-item"
++                      item="project"
++                      callback="ctrl.actions.edit.open">
++                {% trans 'Edit Project' %}
++              </action>
++              <action button-type="menu-item"
++                      item="project"
++                      callback="">
++                {% trans 'View Usage' %}
++              </action>
++              <action button-type="menu-item"
++                      item="project"
++                      callback="">
++                {% trans 'Modify Quotas' %}
++              </action>
++              <action button-type="menu-item"
++                      action-classes="'text-danger'"
++                      item="project"
++                      callback="">
++                {% trans 'Delete Project' %}
++              </action>
++              <action button-type="menu-item"
++                      item="project"
++                      action-classes="ctrl.canBeSetAsActive(project.id) ? '' : 'ng-hide'">
++                      <!-- TODO: should use ng-show. modify
++                           action directive to support this maybe? -->
++                {% trans 'Set as Active Project' %}
++              </action>
++            </menu>
++          </action-list>
++        </td>
++      </tr>
++
++      <!-- Detail row -->
++      <tr ng-repeat-end class="detail-row">
++        <td class="detail" colspan="100"><!-- TODO: move css to scss file -->
++          <dl class="dl-horizontal">
++            <dt>{$ ::ctrl.context.header.name $}</dt>
++            <dd>{$ project.name $}</dd>
++            <dt>{$ ::ctrl.context.header.projectId $}</dt>
++            <dd>{$ project.id $}</dd>
++            <dt>{$ ::ctrl.context.header.enabled $}</dt>
++            <dd>{$ project.enabled | yesno $}</dd>
++            <dt>{$ ::ctrl.context.header.description $}</dt>
++            <dd>{$ project.description $}</dd>
++          </dl>
++        </td>
++      </tr>
++    </tbody>
++
++    <!-- Table footer displays the number of the currently displayed projects
++         and navigation controls.
++    -->
++    <tfoot>
++      <tr>
++        <td colspan="100">
++          <span class="display">{$ ctrl.displayedProjects.length | itemCount $}</span>
++          <div st-pagination="" st-items-per-page="10" st-displayed-pages="10"></div>
++        </td>
++      </tr>
++    </tfoot>
++  </table>
++{% endblock %}
+diff --git a/openstack_dashboard/dashboards/identity/projects/urls.py b/openstack_dashboard/dashboards/identity/projects/urls.py
+index 6528a26..cd7c0f2 100644
+--- a/openstack_dashboard/dashboards/identity/projects/urls.py
++++ b/openstack_dashboard/dashboards/identity/projects/urls.py
+@@ -18,6 +18,7 @@
+ 
+ from django.conf.urls import patterns
+ from django.conf.urls import url
++from django.views.generic import TemplateView as template
+ 
+ from openstack_dashboard.dashboards.identity.projects import views
+ 
+@@ -32,4 +33,8 @@ urlpatterns = patterns(
+         views.ProjectUsageView.as_view(), name='usage'),
+     url(r'^(?P<project_id>[^/]+)/detail/$',
+         views.DetailProjectView.as_view(), name='detail'),
++    url(r'^angularprojects/$',
++        template.as_view(template_name="identity/projects/table.html")),
++    url(r'^angularprojects/form/$',
++        template.as_view(template_name="identity/projects/form.html")),
+ )
+diff --git a/openstack_dashboard/enabled/_25_identity.py b/openstack_dashboard/enabled/_25_identity.py
+index 4da2d7d..175f672 100644
+--- a/openstack_dashboard/enabled/_25_identity.py
++++ b/openstack_dashboard/enabled/_25_identity.py
+@@ -33,6 +33,11 @@ ADD_JS_FILES = [
+     'dashboard/identity/users/actions/edit.js',
+     'dashboard/identity/users/actions/enable.js',
+     'dashboard/identity/users/actions/password.js',
++    'dashboard/identity/projects/projects.module.js',
++    'dashboard/identity/projects/table.ctrl.js',
++    'dashboard/identity/projects/form.ctrl.js',
++    'dashboard/identity/projects/actions/create.service.js',
++    'dashboard/identity/projects/actions/edit.service.js',
+ ]
+ 
+ ADD_JS_SPEC_FILES = [
+@@ -45,4 +50,9 @@ ADD_JS_SPEC_FILES = [
+     'dashboard/identity/users/actions/edit.spec.js',
+     'dashboard/identity/users/actions/enable.spec.js',
+     'dashboard/identity/users/actions/password.spec.js',
++    'dashboard/identity/projects/projects.module.spec.js',
++    'dashboard/identity/projects/table.ctrl.spec.js',
++    'dashboard/identity/projects/form.ctrl.spec.js',
++    'dashboard/identity/projects/actions/create.service.spec.js',
++    'dashboard/identity/projects/actions/edit.service.spec.js',
+ ]
+diff --git a/openstack_dashboard/static/dashboard/identity/identity.js b/openstack_dashboard/static/dashboard/identity/identity.js
+index b30dcb2..504d715 100644
+--- a/openstack_dashboard/static/dashboard/identity/identity.js
++++ b/openstack_dashboard/static/dashboard/identity/identity.js
+@@ -25,7 +25,8 @@
+    * Dashboard module to host various identity panels.
+    */
+   angular.module('hz.dashboard.identity', [
+-    'hz.dashboard.identity.users'
++    'hz.dashboard.identity.users',
++    'hz.dashboard.identity.projects'
+   ]);
+ 
+-})();
+\ No newline at end of file
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/identity.scss b/openstack_dashboard/static/dashboard/identity/identity.scss
+index 514891b..c18add6 100644
+--- a/openstack_dashboard/static/dashboard/identity/identity.scss
++++ b/openstack_dashboard/static/dashboard/identity/identity.scss
+@@ -1 +1,2 @@
+-@import "users/users";
+\ No newline at end of file
++@import "users/users";
++@import "projects/projects";
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/actions/create.service.js b/openstack_dashboard/static/dashboard/identity/projects/actions/create.service.js
+new file mode 100644
+index 0000000..4ed80c4
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/actions/create.service.js
+@@ -0,0 +1,81 @@
++(function() {
++  'use strict';
++
++  angular
++    .module('hz.dashboard.identity.projects')
++
++    /**
++     * @ngdoc createProjectAction
++     * @ng-service
++     * @description
++     * Brings up the modal form to create a project.
++     * On submit, create a new project and show a success message.
++     * On cancel, do nothing.
++    */
++    .service('createProjectAction', [
++      '$modal', 'keystoneAPI',
++      createProjectAction]);
++
++  function createProjectAction($modal, keystoneAPI) {
++    var context = {
++      mode: 'create',
++      title: gettext('Create Project'),
++      infoTab: gettext('Project Information'),
++      quotaTab: gettext('Quota'),
++      submit: gettext('Create Project'),
++      success: gettext('Project %s was successfully created.')
++    };
++
++    /* jshint validthis:true */
++    this.Action = function(projectsCtrl) {
++      /* jshint validthis:true */
++      var self = this;
++
++      // These configuration options will be passed to the $modalInstance
++      // service in the modal controller.
++      var option = {
++        // Modal HTML. URL configured in urls.py.
++        templateUrl: 'form',
++        // Modal controller defined in form.js.
++        // Supports use of 'controller as' syntax.
++        controller: 'formProjectCtrl as formCtrl',
++        // These objects are passed to the modal controller as dependencies,
++        // so it can act upon their values.
++        resolve: {
++          context: function() {
++            return context;
++          },
++          project: function() {
++            return {};
++          },
++          user: function() {
++            return projectsCtrl.currentUser;
++          }
++        }
++      };
++
++      self.open = function() {
++        $modal.open(option).result.then(
++          function(response) {
++            self.submit(response);
++          }
++        );
++      };
++
++      self.submit = function(newProject) {
++        keystoneAPI.createProject(newProject).then(
++          function(response) {
++            var message = interpolate(context.success, [newProject.name]);
++
++            projectsCtrl.projects.push(response.data);
++            horizon.alert('success', message);
++            horizon.autoDismissAlerts();
++          }
++        );
++      };
++    };
++
++    /* jshint validthis:true */
++    return this.Action;
++  }
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/actions/create.service.spec.js b/openstack_dashboard/static/dashboard/identity/projects/actions/create.service.spec.js
+new file mode 100644
+index 0000000..4e35f8d
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/actions/create.service.spec.js
+@@ -0,0 +1,59 @@
++(function() {
++  'use strict';
++
++  describe('Identity projects createProjectAction service', function() {
++
++    var option, modal, action, api;
++    var fakeModal = {
++      result: {
++        then: function() {}
++      }
++    };
++
++    var fakeAPI = function() {
++      return {
++        then: function(callback) {
++          return callback({data: {}});
++        }
++      };
++    };
++
++    beforeEach(module('hz'));
++    beforeEach(module('hz.dashboard'));
++    beforeEach(module('hz.dashboard.identity.projects'));
++    beforeEach(inject(function($modal, keystoneAPI, createProjectAction){
++      spyOn($modal, 'open').and.callFake(function(modalOption){
++        option = modalOption;
++        return fakeModal;
++      });
++      modal = $modal;
++
++      spyOn(keystoneAPI, 'createProject').and.callFake(fakeAPI);
++      api = keystoneAPI;
++
++      var CreateAction = createProjectAction;
++      action = new CreateAction(null);
++      spyOn(action, 'open').and.callThrough();
++      spyOn(action, 'submit').and.callFake(function(project) {
++        api.createProject(project);
++      });
++    }));
++
++    it('should launch the create modal on open', function() {
++      action.open();
++      expect(action.open).toHaveBeenCalled();
++      expect(modal.open).toHaveBeenCalled();
++      expect(option.templateUrl).toEqual('form');
++      expect(option.controller).toEqual('formProjectCtrl as formCtrl');
++      expect(option.resolve.context().mode).toEqual('create');
++      expect(Object.keys(option.resolve.project()).length).toEqual(0);
++    });
++
++    it('should invoke the keystone createProject api on submit', function() {
++      var project = {name: 'proj'};
++      action.submit(project);
++      expect(action.submit).toHaveBeenCalledWith(project);
++      expect(api.createProject).toHaveBeenCalledWith(project);
++    });
++  });
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.js b/openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.js
+new file mode 100644
+index 0000000..e4b7eca
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.js
+@@ -0,0 +1,88 @@
++(function() {
++  'use strict';
++
++  angular
++    .module('hz.dashboard.identity.projects')
++
++    /**
++     * @ngdoc editProjectAction
++     * @ng-service
++     * @description
++     * Brings up the edit project modal.
++     * On success, update project and display a success message.
++     * On cancel, do nothing.
++    **/
++    .service('editProjectAction', ['$modal', 'keystoneAPI', editProjectAction]);
++
++  function editProjectAction($modal, keystoneAPI) {
++    var context = {
++      mode: 'edit',
++      title: gettext('Edit Project'),
++      infoTab: gettext('Project Information'),
++      quotaTab: gettext('Quota'),
++      submit: gettext('Save'),
++      success: gettext('Project %s has been updated successfully.')
++    };
++
++    /* jshint validthis:true */
++    this.Action = function(projectsCtrl) {
++      /* jshint validthis:true */
++      var self = this;
++
++      var option = {
++        templateUrl: 'form',
++        controller: 'formProjectCtrl as formCtrl',
++        resolve: {
++          context: function() {
++            return context;
++          },
++          project: function() {
++            return {};
++          },
++          user: function() {
++            return projectsCtrl.currentUser;
++          }
++        }
++      };
++
++      self.clean = function(project) {
++        return {
++          id: project.id,
++          name: project.name,
++          description: project.description,
++          enabled: project.enabled,
++          domain_id: project.domain_id
++        };
++      };
++
++      self.open = function(project) {
++        var projectCopy = angular.copy(project);
++        option.resolve.project = function() {
++          return projectCopy;
++        };
++
++        $modal.open(option).result.then(
++          function(response) {
++            self.submit(response, project);
++          }
++        );
++      };
++
++      self.submit = function(updatedProject, project) {
++        var cleanedProject = self.clean(updatedProject);
++        keystoneAPI.editProject(cleanedProject).then(
++          function() {
++            var message = interpolate(context.success, [cleanedProject.name]);
++
++            horizon.alert('success', message);
++            horizon.autoDismissAlerts();
++            angular.extend(project, cleanedProject);
++          }
++        );
++      };
++    };
++
++    /* jshint validthis:true */
++    return this.Action;
++  }
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.spec.js b/openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.spec.js
+new file mode 100644
+index 0000000..4991a20
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/actions/edit.service.spec.js
+@@ -0,0 +1,67 @@
++(function() {
++  'use strict';
++
++  describe('Identity projects editProjectAction service', function() {
++
++    var option, modal, action, api;
++    var fakeModal = {
++      result: {
++        then: function() {}
++      }
++    };
++
++    var fakeAPI = function() {
++      return {
++        then: function(callback) {
++          return callback({data: {}});
++        }
++      };
++    };
++
++    beforeEach(module('hz'));
++    beforeEach(module('hz.dashboard'));
++    beforeEach(module('hz.dashboard.identity.projects'));
++    beforeEach(inject(function($modal, keystoneAPI, editProjectAction){
++      spyOn($modal, 'open').and.callFake(function(modalOption){
++        option = modalOption;
++        return fakeModal;
++      });
++      modal = $modal;
++
++      spyOn(keystoneAPI, 'editProject').and.callFake(fakeAPI);
++      api = keystoneAPI;
++
++      var EditAction = editProjectAction;
++      action = new EditAction(null);
++      spyOn(action, 'open').and.callThrough();
++      spyOn(action, 'submit').and.callFake(function(project) {
++        api.editProject(action.clean(project));
++      });
++    }));
++
++    it('should launch the edit modal on open', function() {
++      var project = {name: 'proj'};
++      action.open(project);
++      expect(action.open).toHaveBeenCalled();
++      expect(modal.open).toHaveBeenCalled();
++      expect(option.templateUrl).toEqual('form');
++      expect(option.controller).toEqual('formProjectCtrl as formCtrl');
++      expect(option.resolve.context().mode).toEqual('edit');
++      expect(option.resolve.project()).toEqual(project);
++    });
++
++    it('should invoke the keystone editProject api on submit', function() {
++      var project = {
++        id: '01',
++        name: 'proj',
++        description: 'a project',
++        enabled: true,
++        domain_id: '01',
++        extra: 'useless'
++      };
++      action.submit(project, {});
++      expect(action.submit).toHaveBeenCalledWith(project, {});
++      expect(api.editProject).toHaveBeenCalledWith(action.clean(project));
++    });
++  });
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/form.ctrl.js b/openstack_dashboard/static/dashboard/identity/projects/form.ctrl.js
+new file mode 100644
+index 0000000..15af74f
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/form.ctrl.js
+@@ -0,0 +1,65 @@
++(function() {
++  'use strict';
++
++  angular
++    .module('hz.dashboard.identity.projects')
++
++    /**
++     * @ngdoc formProjectCtrl
++     * @ng-controller
++     * @description
++     * This controller is used for the create and edit project modal form.
++    */
++    .controller('formProjectCtrl', [
++      '$modalInstance', 'keystoneAPI','settingsService',
++      'context', 'project', 'user',
++      formProjectCtrl
++    ]);
++
++  function formProjectCtrl(
++    $modalInstance, keystoneAPI, settingsService,
++    context, project, user) {
++    /* jshint validthis:true */
++    var self = this;
++
++    self.context = context;
++    self.project = project;
++    self.user = user;
++    self.showDomainInfo = false;
++
++    self.context.error = {
++      domain: gettext('Unable to retrieve domain name.')
++    };
++
++    self.actions = {
++      submit: function() { $modalInstance.close(self.project); },
++      cancel: function() { $modalInstance.dismiss('cancel'); }
++    };
++
++    self.isCurrentProject = self.context.mode === 'edit' &&
++                            self.project.id === self.user.project_id ?
++                            true : false;
++
++    settingsService.getSetting('OPENSTACK_API_VERSIONS.identity', 2).then(
++      function(response) {
++        self.showDomainInfo = response >= 3 ? true : false;
++      }
++    );
++
++    if (self.context.mode === 'create') {
++      self.project.enabled = true;
++    }
++
++    // Retrieve project domain name in edit mode.
++    if (self.context.mode === 'edit' && self.showDomainInfo) {
++      keystoneAPI.getDomain(self.project.domain_id).then(
++        function(response) {
++          self.domainName = response.data.name;
++        },
++        function() {
++          horizon.alert('info', self.context.error.domain);
++        }
++      );
++    }
++  }
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/form.ctrl.spec.js b/openstack_dashboard/static/dashboard/identity/projects/form.ctrl.spec.js
+new file mode 100644
+index 0000000..5f995d5
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/form.ctrl.spec.js
+@@ -0,0 +1,121 @@
++(function() {
++  'use strict';
++
++  describe('Identity projects form controller', function() {
++    var controller, keyAPI, setService;
++
++    var fakeProject = {};
++
++    // $modalInstance service mock
++    var modalInstance = {
++      close: jasmine.createSpy('modalInstance.close'),
++      dismiss: jasmine.createSpy('modalInstance.dismiss')
++    };
++
++    // api call mock
++    var fakePromise = function() {
++      return {
++        then: function(callback) {
++          return callback({data: {}});
++        }
++      };
++    };
++
++    var fakeKeystoneVersion = 3;
++    var fakeSettings = function() {
++      return {
++        then: function(callback) {
++          return callback(fakeKeystoneVersion);
++        }
++      };
++    };
++
++    beforeEach(module('hz'));
++    beforeEach(module('hz.dashboard'));
++    beforeEach(module('hz.dashboard.identity.projects'));
++    beforeEach(inject(function($controller, keystoneAPI, settingsService) {
++      spyOn(keystoneAPI, 'getCurrentUserSession').and.callFake(fakePromise);
++      spyOn(keystoneAPI, 'getDomain').and.callFake(fakePromise);
++      keyAPI = keystoneAPI;
++
++      spyOn(settingsService, 'getSetting').and.callFake(fakeSettings);
++      setService = settingsService;
++
++      controller = $controller;
++    }));
++
++    it('should show domain info if keystone version is 3 or above', function() {
++      var ctrl = controller('formProjectCtrl', {
++        $modalInstance: modalInstance,
++        context: {},
++        project: {},
++        user: {}
++      });
++      expect(setService.getSetting).toHaveBeenCalledWith('OPENSTACK_API_VERSIONS.identity', 2);
++      expect(ctrl.showDomainInfo).toBeTruthy();
++    });
++
++    it('should not show domain info if keystone version is below 3', function() {
++      fakeKeystoneVersion = 2;
++      var ctrl = controller('formProjectCtrl', {
++        $modalInstance: modalInstance,
++        context: {},
++        project: {},
++        user: {}
++      });
++      expect(setService.getSetting).toHaveBeenCalledWith('OPENSTACK_API_VERSIONS.identity', 2);
++      expect(ctrl.showDomainInfo).toBeFalsy();
++    });
++
++    describe('Project create form', function() {
++      var ctrl, createContext;
++
++      beforeEach(function() {
++        createContext = {mode: 'create'};
++        ctrl = controller('formProjectCtrl', {
++          $modalInstance: modalInstance,
++          context: createContext,
++          project: fakeProject,
++          user: {}
++        });
++      });
++
++      it('should set enabled to true in create mode', function() {
++        expect(ctrl.context.mode).toEqual('create');
++        expect(ctrl.project.enabled).toBeTruthy();
++      });
++
++      it('should close dialog on submit', function() {
++        ctrl.actions.submit();
++        expect(modalInstance.close).toHaveBeenCalledWith(fakeProject);
++      });
++
++      it('should dismiss dialog on cancel', function() {
++        ctrl.actions.cancel();
++        expect(modalInstance.dismiss).toHaveBeenCalledWith('cancel');
++      });
++    });
++
++    describe('Project edit form', function() {
++      var ctrl, editContext;
++
++      beforeEach(function() {
++        fakeKeystoneVersion = 3;
++        editContext = {mode: 'edit'};
++        ctrl = controller('formProjectCtrl', {
++          $modalInstance: modalInstance,
++          settingsService: setService,
++          context: editContext,
++          project: fakeProject,
++          user: {}
++        });
++      });
++
++      it('should invoke keystone getDomain in edit mode', function() {
++        expect(ctrl.context.mode).toEqual('edit');
++        expect(ctrl.showDomainInfo).toBeTruthy();
++        expect(keyAPI.getDomain).toHaveBeenCalled();
++      });
++    });
++  });
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/projects.module.js b/openstack_dashboard/static/dashboard/identity/projects/projects.module.js
+new file mode 100644
+index 0000000..7753a82
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/projects.module.js
+@@ -0,0 +1,12 @@
++(function() {
++  'use strict';
++
++  /**
++   * @ngdoc hz.dashboard.identity.projects
++   * @ng-module
++   * @description
++   * Provides all of the services and widgets required
++   * to support and display the identity projects.
++   */
++  angular.module('hz.dashboard.identity.projects', []);
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/projects.module.spec.js b/openstack_dashboard/static/dashboard/identity/projects/projects.module.spec.js
+new file mode 100644
+index 0000000..c0343ad
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/projects.module.spec.js
+@@ -0,0 +1,9 @@
++(function() {
++  'use strict';
++
++  describe('Identity projects module', function() {
++    it('should exist', function() {
++      expect(angular.module('hz.dashboard.identity.projects')).toBeDefined();
++    });
++  });
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/projects.scss b/openstack_dashboard/static/dashboard/identity/projects/projects.scss
+new file mode 100644
+index 0000000..fa25d6d
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/projects.scss
+@@ -0,0 +1,16 @@
++table[ng-controller="identityProjectsCtrl as ctrl"] {
++
++  .action-col {
++    min-width: 15em !important;
++  }
++
++  .detail-expanded dl.dl-horizontal {
++    padding-left: 2em;
++  }
++}
++
++form {
++  fieldset {
++    padding-top: 2em;
++  }
++}
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/table.ctrl.js b/openstack_dashboard/static/dashboard/identity/projects/table.ctrl.js
+new file mode 100644
+index 0000000..7b81d60
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/table.ctrl.js
+@@ -0,0 +1,128 @@
++(function() {
++  'use strict';
++
++  angular
++    .module('hz.dashboard.identity.projects')
++
++    /**
++     * @ngdoc identityProjectCtrl
++     * @ng-controller
++     * @description
++     * Controller for the identity projects table.
++     * Encapsulate all data and actions associated to
++     * the main projects view.
++    */
++    .controller('identityProjectsCtrl', [
++      '$q', 'policyAPI', 'keystoneAPI',
++      'createProjectAction', 'editProjectAction',
++      identityProjectsCtrl]);
++
++  function identityProjectsCtrl(
++    $q, policyAPI, keystoneAPI,
++    CreateAction, EditAction) {
++
++    /* jshint validthis:true */
++    var self = this;
++
++    self.projects = [];
++    self.displayedProjects = [];
++
++    self.allowedProjects = [];
++    self.currentUser = {};
++
++    self.canBeSetAsActive = canBeSetAsActive;
++
++    // Labels and messages
++    self.context = {
++      header: {
++        name: gettext('Name'),
++        description: gettext('Description'),
++        projectId: gettext('Project ID'),
++        enabled: gettext('Enabled'),
++        action: gettext('Action')
++      },
++      error: {
++        api: gettext('Unable to retrieve projects.'),
++        privilege: gettext('Insufficient privilege level to view project information.'),
++        user: gettext('Unable to retrieve current user info.'),
++        projects: gettext('Unable to retrieve current user allowed projects.')
++      }
++    };
++
++    // Actions
++    self.actions = {
++      create: new CreateAction(self),
++      edit: new EditAction(self)
++    };
++
++    init();
++
++    // Check if a given project can be set as the active
++    // project for the current user
++    function canBeSetAsActive(projectId) {
++      if (projectId !== self.currentUser.project_id) {
++        for(var i = 0; i < self.allowedProjects.length; i++) {
++          if (projectId === self.allowedProjects[i].id) {
++            return true;
++          }
++        }
++      }
++      return false;
++    }
++
++    // Retrieve information about the current user,
++    // particularly the currently active project and the allowed
++    // projects that can be set as the active one.
++    function getUserInfo() {
++      keystoneAPI.getCurrentUserSession().then(
++        function(response) {
++          self.currentUser = response.data;
++          return keystoneAPI.getProjects({user_id: self.currentUser.id});
++        },
++        function() {
++          if (horizon) {
++            horizon.alert('error', self.context.error.user);
++          }
++          return $q.reject();
++        }
++      ).then(
++        function(response) {
++          self.allowedProjects = response.data.items;
++        },
++        function() {
++          if (horizon) {
++            horizon.alert('info', self.context.error.projects);
++          }
++        }
++      );
++    }
++
++    // If the user has permission, populate the projects table.
++    function initializeTable() {
++      policyAPI.check({rules: [['identity', 'identity:list_projects']]}).then(
++        function(response) {
++          if(response.data.allowed) {
++            keystoneAPI.getProjects().then(
++              function(response) {
++                self.projects = response.data.items;
++              },
++              function() {
++                if (horizon) {
++                  horizon.alert('error', self.context.error.api);
++                }
++              }
++            );
++          } else if (horizon) {
++              horizon.alert('info', self.context.error.privilege);
++          }
++        }
++      );
++    }
++
++    // Called on controller creation
++    function init() {
++      getUserInfo();
++      initializeTable();
++    }
++  }
++})();
+diff --git a/openstack_dashboard/static/dashboard/identity/projects/table.ctrl.spec.js b/openstack_dashboard/static/dashboard/identity/projects/table.ctrl.spec.js
+new file mode 100644
+index 0000000..9ac0a35
+--- /dev/null
++++ b/openstack_dashboard/static/dashboard/identity/projects/table.ctrl.spec.js
+@@ -0,0 +1,99 @@
++(function() {
++
++  'use strict';
++
++  describe('Identity projects table controller', function() {
++    var ctrl, polAPI, keyAPI, controller;
++
++    var fakePass = {allowed: true};
++    var fakePolicy = function() {
++      return {
++        then: function(callback) {
++          return callback({data: fakePass});
++        }
++      };
++    };
++
++    var fakeUser = {
++      id: '01',
++      username: 'user',
++      project_id: '01'
++    };
++    var fakeUserSession = function() {
++      return {
++        then: function(callback) {
++          return callback({data: fakeUser});
++        }
++      };
++    };
++
++    var fakeUserProjects = {
++      items: [
++        {id: '01'},
++        {id: '02'},
++        {id: '03'}
++      ]
++    };
++    var fakeProjects = function() {
++      return {
++        then: function(callback) {
++          return callback({data: fakeUserProjects});
++        }
++      };
++    };
++
++    beforeEach(module('hz'));
++    beforeEach(module('hz.dashboard'));
++    beforeEach(module('hz.dashboard.identity.projects'));
++
++    beforeEach(inject(function($controller, keystoneAPI, policyAPI) {
++      spyOn(keystoneAPI, 'getCurrentUserSession').and.callFake(fakeUserSession);
++      spyOn(keystoneAPI, 'getProjects').and.callFake(fakeProjects);
++      keyAPI = keystoneAPI;
++
++      spyOn(policyAPI, 'check').and.callFake(fakePolicy);
++      polAPI = policyAPI;
++
++      controller = $controller;
++    }));
++
++    it('should retrieve current user session', function() {
++      ctrl = controller('identityProjectsCtrl');
++      expect(keyAPI.getCurrentUserSession).toHaveBeenCalled();
++      expect(ctrl.currentUser).toEqual(fakeUser);
++    });
++
++    it('should retrieve current user projects', function() {
++      ctrl = controller('identityProjectsCtrl');
++      expect(keyAPI.getCurrentUserSession).toHaveBeenCalled();
++      expect(keyAPI.getProjects).toHaveBeenCalledWith({user_id: ctrl.currentUser.id});
++      expect(ctrl.allowedProjects).toEqual(fakeUserProjects.items);
++    });
++
++    it('should not enable a disallowed project to be set as active', function() {
++      ctrl = controller('identityProjectsCtrl');
++      // same as active project
++      expect(ctrl.canBeSetAsActive('01')).toBeFalsy();
++      // not in allowed projects
++      expect(ctrl.canBeSetAsActive('04')).toBeFalsy();
++      // allowed
++      expect(ctrl.canBeSetAsActive('02')).toBeTruthy();
++    });
++
++    it('should retrieve all projects if policy passes', function() {
++      fakePass.allowed = true;
++      ctrl = controller('identityProjectsCtrl');
++      expect(polAPI.check).toHaveBeenCalled();
++      expect(keyAPI.getProjects).toHaveBeenCalled();
++      expect(ctrl.projects.length).toEqual(3);
++    });
++
++    it('should not retrieve all projects if policy fails', function() {
++      fakePass.allowed = false;
++      horizon.alert = function() {};
++      ctrl = controller('identityProjectsCtrl');
++      expect(polAPI.check).toHaveBeenCalled();
++      expect(ctrl.projects.length).toEqual(0);
++    });
++  });
++})();
+diff --git a/openstack_dashboard/test/jasmine/jasmine_tests.py b/openstack_dashboard/test/jasmine/jasmine_tests.py
+index 9f6ce85..e9876d1 100644
+--- a/openstack_dashboard/test/jasmine/jasmine_tests.py
++++ b/openstack_dashboard/test/jasmine/jasmine_tests.py
+@@ -43,6 +43,11 @@ class ServicesTests(test.ServicesTests):
+         'dashboard/identity/users/actions/edit.js',
+         'dashboard/identity/users/actions/enable.js',
+         'dashboard/identity/users/actions/password.js',
++        'dashboard/identity/projects/projects.module.js',
++        'dashboard/identity/projects/table.ctrl.js',
++        'dashboard/identity/projects/form.ctrl.js',
++        'dashboard/identity/projects/actions/create.service.js',
++        'dashboard/identity/projects/actions/edit.service.js',
+     ]
+ 
+     # We are only testing dashboard specs here
+@@ -67,6 +72,11 @@ class ServicesTests(test.ServicesTests):
+         'dashboard/identity/users/actions/edit.spec.js',
+         'dashboard/identity/users/actions/enable.spec.js',
+         'dashboard/identity/users/actions/password.spec.js',
++        'dashboard/identity/projects/projects.module.spec.js',
++        'dashboard/identity/projects/table.ctrl.spec.js',
++        'dashboard/identity/projects/form.ctrl.spec.js',
++        'dashboard/identity/projects/actions/create.service.spec.js',
++        'dashboard/identity/projects/actions/edit.service.spec.js',
+     ]
+     externalTemplates = []
+ 
+-- 
+1.9.1
+

@@ -1,0 +1,447 @@
+From 8f1e5675c4d4efd49b0a79c80b6dda734ab8ee0f Mon Sep 17 00:00:00 2001
+From: Paulo Ewerton Gomes Fragoso <pauloewerton@lsd.ufcg.edu.br>
+Date: Thu, 23 Jul 2015 15:12:02 +0000
+Subject: [PATCH] Move d-o-a auth library to keystoneauth
+
+With the keystoneauth release, the authentication library
+should move from keystoneclient to keystoneauth.
+
+Co-Authored-By: Diego Adolfo <diegoado@gmail.com>
+
+Change-Id: If880022f447255e7d943915087e229778cc6acf8
+Implements: blueprint keystoneauth-update
+---
+ openstack_auth/backend.py         |  7 ++++---
+ openstack_auth/plugin/base.py     |  2 +-
+ openstack_auth/plugin/password.py |  4 ++--
+ openstack_auth/plugin/token.py    |  4 ++--
+ openstack_auth/tests/data_v2.py   | 19 ++++++-----------
+ openstack_auth/tests/data_v3.py   | 21 ++++++++-----------
+ openstack_auth/tests/tests.py     | 44 +++++++++++++++++++--------------------
+ openstack_auth/user.py            | 11 +++-------
+ openstack_auth/utils.py           |  8 +++----
+ openstack_auth/views.py           |  4 ++--
+ requirements.txt                  |  1 +
+ 11 files changed, 56 insertions(+), 69 deletions(-)
+
+diff --git a/openstack_auth/backend.py b/openstack_auth/backend.py
+index 29ec87e..3de30ff 100644
+--- a/openstack_auth/backend.py
++++ b/openstack_auth/backend.py
+@@ -20,7 +20,7 @@ import pytz
+ from django.conf import settings
+ from django.utils.module_loading import import_string  # noqa
+ from django.utils.translation import ugettext_lazy as _
+-from keystoneclient import exceptions as keystone_exceptions
++from keystoneauth1 import exceptions as keystone_exceptions
+ 
+ from openstack_auth import exceptions
+ from openstack_auth import user as auth_user
+@@ -110,7 +110,7 @@ class KeystoneBackend(object):
+ 
+         try:
+             unscoped_auth_ref = unscoped_auth.get_access(session)
+-        except keystone_exceptions.ConnectionRefused as exc:
++        except keystone_exceptions.ConnectFailure as exc:
+             LOG.error(str(exc))
+             msg = _('Unable to establish connection to keystone endpoint.')
+             raise exceptions.KeystoneAuthException(msg)
+@@ -224,7 +224,8 @@ class KeystoneBackend(object):
+         user = auth_user.create_user_from_token(
+             request,
+             auth_user.Token(scoped_auth_ref, unscoped_token=unscoped_token),
+-            scoped_auth_ref.service_catalog.url_for(endpoint_type=interface))
++            scoped_auth_ref.service_catalog.url_for(service_type='identity',
++                                                    interface=interface))
+ 
+         if request is not None:
+             request.session['unscoped_token'] = unscoped_token
+diff --git a/openstack_auth/plugin/base.py b/openstack_auth/plugin/base.py
+index e3bd802..da87365 100644
+--- a/openstack_auth/plugin/base.py
++++ b/openstack_auth/plugin/base.py
+@@ -13,7 +13,7 @@
+ import abc
+ 
+ from django.utils.translation import ugettext_lazy as _
+-from keystoneclient import exceptions as keystone_exceptions
++from keystoneauth1 import exceptions as keystone_exceptions
+ from keystoneclient.v2_0 import client as v2_client
+ from keystoneclient.v3 import client as v3_client
+ import six
+diff --git a/openstack_auth/plugin/password.py b/openstack_auth/plugin/password.py
+index 4143f25..0e3100c 100644
+--- a/openstack_auth/plugin/password.py
++++ b/openstack_auth/plugin/password.py
+@@ -12,8 +12,8 @@
+ 
+ import logging
+ 
+-from keystoneclient.auth.identity import v2 as v2_auth
+-from keystoneclient.auth.identity import v3 as v3_auth
++from keystoneauth1.identity import v2 as v2_auth
++from keystoneauth1.identity import v3 as v3_auth
+ 
+ from openstack_auth.plugin import base
+ from openstack_auth import utils
+diff --git a/openstack_auth/plugin/token.py b/openstack_auth/plugin/token.py
+index cea10a3..b812b44 100644
+--- a/openstack_auth/plugin/token.py
++++ b/openstack_auth/plugin/token.py
+@@ -10,8 +10,8 @@
+ # License for the specific language governing permissions and limitations
+ # under the License.
+ 
+-from keystoneclient.auth.identity import v2 as v2_auth
+-from keystoneclient.auth.identity import v3 as v3_auth
++from keystoneauth1.identity import v2 as v2_auth
++from keystoneauth1.identity import v3 as v3_auth
+ 
+ from openstack_auth.plugin import base
+ from openstack_auth import utils
+diff --git a/openstack_auth/tests/data_v2.py b/openstack_auth/tests/data_v2.py
+index 08834fe..1f3a914 100644
+--- a/openstack_auth/tests/data_v2.py
++++ b/openstack_auth/tests/data_v2.py
+@@ -15,8 +15,8 @@ import datetime
+ import uuid
+ 
+ from django.utils import datetime_safe
+-from keystoneclient import access
+-from keystoneclient import service_catalog
++from keystoneauth1.access import access
++from keystoneauth1.access import service_catalog
+ from keystoneclient.v2_0 import roles
+ from keystoneclient.v2_0 import tenants
+ from keystoneclient.v2_0 import users
+@@ -116,7 +116,7 @@ def generate_test_data():
+         }
+     }
+ 
+-    test_data.scoped_access_info = access.AccessInfo.factory(
++    test_data.scoped_access_info = access.create(
+         resp=None,
+         body=scoped_token_dict)
+ 
+@@ -132,19 +132,12 @@ def generate_test_data():
+             'serviceCatalog': [keystone_service]
+         }
+     }
+-    test_data.unscoped_access_info = access.AccessInfo.factory(
++    test_data.unscoped_access_info = access.create(
+         resp=None,
+         body=unscoped_token_dict)
+ 
+     # Service Catalog
+-    test_data.service_catalog = service_catalog.ServiceCatalog.factory({
+-        'serviceCatalog': [keystone_service, nova_service],
+-        'token': {
+-            'id': scoped_token_dict['access']['token']['id'],
+-            'expires': scoped_token_dict['access']['token']['expires'],
+-            'user_id': user_dict['id'],
+-            'tenant_id': tenant_dict_1['id']
+-        }
+-    })
++    test_data.service_catalog = service_catalog.ServiceCatalogV2(
++        [keystone_service, nova_service])
+ 
+     return test_data
+diff --git a/openstack_auth/tests/data_v3.py b/openstack_auth/tests/data_v3.py
+index 73d16cc..e3c3f8c 100644
+--- a/openstack_auth/tests/data_v3.py
++++ b/openstack_auth/tests/data_v3.py
+@@ -15,8 +15,8 @@ import datetime
+ import uuid
+ 
+ from django.utils import datetime_safe
+-from keystoneclient import access
+-from keystoneclient import service_catalog
++from keystoneauth1.access import access
++from keystoneauth1.access import service_catalog
+ from keystoneclient.v3 import domains
+ from keystoneclient.v3 import projects
+ from keystoneclient.v3 import roles
+@@ -211,7 +211,7 @@ def generate_test_data():
+         }
+     }
+ 
+-    test_data.scoped_access_info = access.AccessInfo.factory(
++    test_data.scoped_access_info = access.create(
+         resp=auth_response,
+         body=scoped_token_dict
+     )
+@@ -236,7 +236,7 @@ def generate_test_data():
+             'catalog': [keystone_service, nova_service]
+         }
+     }
+-    test_data.domain_scoped_access_info = access.AccessInfo.factory(
++    test_data.domain_scoped_access_info = access.create(
+         resp=auth_response,
+         body=domain_token_dict
+     )
+@@ -257,17 +257,14 @@ def generate_test_data():
+         }
+     }
+ 
+-    test_data.unscoped_access_info = access.AccessInfo.factory(
++    test_data.unscoped_access_info = access.create(
+         resp=auth_response,
+         body=unscoped_token_dict
+     )
+ 
+     # Service Catalog
+-    test_data.service_catalog = service_catalog.ServiceCatalog.factory({
+-        'methods': ['password'],
+-        'user': {},
+-        'catalog': [keystone_service, nova_service],
+-    }, token=auth_token)
++    test_data.service_catalog = service_catalog.ServiceCatalogV3(
++        [keystone_service, nova_service])
+ 
+     # federated user
+     federated_scoped_token_dict = {
+@@ -303,7 +300,7 @@ def generate_test_data():
+         }
+     }
+ 
+-    test_data.federated_scoped_access_info = access.AccessInfo.factory(
++    test_data.federated_scoped_access_info = access.create(
+         resp=auth_response,
+         body=federated_scoped_token_dict
+     )
+@@ -332,7 +329,7 @@ def generate_test_data():
+         }
+     }
+ 
+-    test_data.federated_unscoped_access_info = access.AccessInfo.factory(
++    test_data.federated_unscoped_access_info = access.create(
+         resp=auth_response,
+         body=federated_unscoped_token_dict
+     )
+diff --git a/openstack_auth/tests/tests.py b/openstack_auth/tests/tests.py
+index 11d5511..2fad1d0 100644
+--- a/openstack_auth/tests/tests.py
++++ b/openstack_auth/tests/tests.py
+@@ -18,11 +18,11 @@ from django.contrib import auth
+ from django.core.urlresolvers import reverse
+ from django import http
+ from django import test
+-from keystoneclient.auth.identity import v2 as auth_v2
+-from keystoneclient.auth.identity import v3 as auth_v3
+-from keystoneclient.auth import token_endpoint
+-from keystoneclient import exceptions as keystone_exceptions
+-from keystoneclient import session
++from keystoneauth1 import exceptions as keystone_exceptions
++from keystoneauth1.identity import v2 as v2_auth
++from keystoneauth1.identity import v3 as v3_auth
++from keystoneauth1 import session
++from keystoneauth1 import token_endpoint
+ from keystoneclient.v2_0 import client as client_v2
+ from keystoneclient.v3 import client as client_v3
+ import mock
+@@ -100,7 +100,7 @@ class OpenStackAuthTestsV2(OpenStackAuthTestsMixin, test.TestCase):
+     def setUp(self):
+         super(OpenStackAuthTestsV2, self).setUp()
+ 
+-        if self.interface:
++        if getattr(self, 'interface', None):
+             override = self.settings(OPENSTACK_ENDPOINT_TYPE=self.interface)
+             override.enable()
+             self.addCleanup(override.disable)
+@@ -116,8 +116,8 @@ class OpenStackAuthTestsV2(OpenStackAuthTestsMixin, test.TestCase):
+         settings.OPENSTACK_KEYSTONE_URL = "http://localhost:5000/v2.0"
+ 
+         self.mox.StubOutClassWithMocks(token_endpoint, 'Token')
+-        self.mox.StubOutClassWithMocks(auth_v2, 'Token')
+-        self.mox.StubOutClassWithMocks(auth_v2, 'Password')
++        self.mox.StubOutClassWithMocks(v2_auth, 'Token')
++        self.mox.StubOutClassWithMocks(v2_auth, 'Password')
+         self.mox.StubOutClassWithMocks(client_v2, 'Client')
+ 
+     def _mock_unscoped_list_tenants(self, client, tenants):
+@@ -152,7 +152,7 @@ class OpenStackAuthTestsV2(OpenStackAuthTestsMixin, test.TestCase):
+         if not url:
+             url = settings.OPENSTACK_KEYSTONE_URL
+ 
+-        return auth_v2.Password(auth_url=url,
++        return v2_auth.Password(auth_url=url,
+                                 password=password,
+                                 username=username)
+ 
+@@ -163,7 +163,7 @@ class OpenStackAuthTestsV2(OpenStackAuthTestsMixin, test.TestCase):
+         if not url:
+             url = settings.OPENSTACK_KEYSTONE_URL
+ 
+-        return auth_v2.Token(auth_url=url,
++        return v2_auth.Token(auth_url=url,
+                              token=token,
+                              tenant_id=project_id,
+                              reauthenticate=False)
+@@ -332,7 +332,7 @@ class OpenStackAuthTestsV2(OpenStackAuthTestsMixin, test.TestCase):
+         scoped = self.data.scoped_access_info
+         sc = self.data.service_catalog
+         et = getattr(settings, 'OPENSTACK_ENDPOINT_TYPE', 'publicURL')
+-        endpoint = sc.url_for(endpoint_type=et)
++        endpoint = sc.url_for(service_type='identity', interface=et)
+ 
+         form_data = self.get_form_data(user)
+ 
+@@ -354,7 +354,7 @@ class OpenStackAuthTestsV2(OpenStackAuthTestsMixin, test.TestCase):
+ 
+         url = reverse('switch_tenants', args=[tenant.id])
+ 
+-        scoped['token']['tenant']['id'] = self.data.tenant_two.id
++        scoped._token['tenant']['id'] = self.data.tenant_two.id
+ 
+         if next:
+             form_data.update({auth.REDIRECT_FIELD_NAME: next})
+@@ -521,7 +521,7 @@ class OpenStackAuthTestsV3(OpenStackAuthTestsMixin, test.TestCase):
+         if not url:
+             url = settings.OPENSTACK_KEYSTONE_URL
+ 
+-        return auth_v3.Password(auth_url=url,
++        return v3_auth.Password(auth_url=url,
+                                 password=password,
+                                 username=username,
+                                 user_domain_name=DEFAULT_DOMAIN,
+@@ -536,12 +536,12 @@ class OpenStackAuthTestsV3(OpenStackAuthTestsMixin, test.TestCase):
+             url = settings.OPENSTACK_KEYSTONE_URL
+ 
+         if domain_name:
+-            return auth_v3.Token(auth_url=url,
++            return v3_auth.Token(auth_url=url,
+                                  token=token,
+                                  domain_name=domain_name,
+                                  reauthenticate=False)
+         else:
+-            return auth_v3.Token(auth_url=url,
++            return v3_auth.Token(auth_url=url,
+                                  token=token,
+                                  project_id=project_id,
+                                  reauthenticate=False)
+@@ -564,8 +564,8 @@ class OpenStackAuthTestsV3(OpenStackAuthTestsMixin, test.TestCase):
+         settings.OPENSTACK_KEYSTONE_URL = "http://localhost:5000/v3"
+ 
+         self.mox.StubOutClassWithMocks(token_endpoint, 'Token')
+-        self.mox.StubOutClassWithMocks(auth_v3, 'Token')
+-        self.mox.StubOutClassWithMocks(auth_v3, 'Password')
++        self.mox.StubOutClassWithMocks(v3_auth, 'Token')
++        self.mox.StubOutClassWithMocks(v3_auth, 'Password')
+         self.mox.StubOutClassWithMocks(client_v3, 'Client')
+ 
+     def test_login(self):
+@@ -725,7 +725,7 @@ class OpenStackAuthTestsV3(OpenStackAuthTestsMixin, test.TestCase):
+         self._mock_scoped_client_for_tenant(
+             scoped,
+             project.id,
+-            url=sc.url_for(endpoint_type=et),
++            url=sc.url_for(service_type='identity', interface=et),
+             client=False)
+ 
+         self.mox.ReplayAll()
+@@ -740,7 +740,7 @@ class OpenStackAuthTestsV3(OpenStackAuthTestsMixin, test.TestCase):
+ 
+         url = reverse('switch_tenants', args=[project.id])
+ 
+-        scoped['project']['id'] = self.data.project_two.id
++        scoped._project['id'] = self.data.project_two.id
+ 
+         if next:
+             form_data.update({auth.REDIRECT_FIELD_NAME: next})
+@@ -859,7 +859,7 @@ class OpenStackAuthTestsWebSSO(OpenStackAuthTestsMixin, test.TestCase):
+         if not url:
+             url = settings.OPENSTACK_KEYSTONE_URL
+ 
+-        return auth_v3.Token(auth_url=url,
++        return v3_auth.Token(auth_url=url,
+                              token=token,
+                              project_id=project_id,
+                              reauthenticate=False)
+@@ -913,8 +913,8 @@ class OpenStackAuthTestsWebSSO(OpenStackAuthTestsMixin, test.TestCase):
+         }
+ 
+         self.mox.StubOutClassWithMocks(token_endpoint, 'Token')
+-        self.mox.StubOutClassWithMocks(auth_v3, 'Token')
+-        self.mox.StubOutClassWithMocks(auth_v3, 'Password')
++        self.mox.StubOutClassWithMocks(v3_auth, 'Token')
++        self.mox.StubOutClassWithMocks(v3_auth, 'Password')
+         self.mox.StubOutClassWithMocks(client_v3, 'Client')
+ 
+     def test_login_form(self):
+diff --git a/openstack_auth/user.py b/openstack_auth/user.py
+index fa30fe6..0d79f44 100644
+--- a/openstack_auth/user.py
++++ b/openstack_auth/user.py
+@@ -17,8 +17,8 @@ import logging
+ from django.conf import settings
+ from django.contrib.auth import models
+ from django.db import models as db_models
++from keystoneauth1 import exceptions as keystone_exceptions
+ from keystoneclient.common import cms as keystone_cms
+-from keystoneclient import exceptions as keystone_exceptions
+ import six
+ 
+ from openstack_auth import utils
+@@ -113,13 +113,8 @@ class Token(object):
+ 
+         # Federation-related attributes
+         self.is_federated = auth_ref.is_federated
+-
+-        if auth_ref.version == 'v2.0':
+-            self.roles = auth_ref['user'].get('roles', [])
+-        else:
+-            self.roles = auth_ref.get('roles', [])
+-
+-        self.serviceCatalog = auth_ref.service_catalog.get_data()
++        self.roles = [{'name': role} for role in auth_ref.role_names]
++        self.serviceCatalog = auth_ref.service_catalog.catalog
+ 
+ 
+ class User(models.AbstractBaseUser, models.AnonymousUser):
+diff --git a/openstack_auth/utils.py b/openstack_auth/utils.py
+index 6f3e8d9..3e7a9f2 100644
+--- a/openstack_auth/utils.py
++++ b/openstack_auth/utils.py
+@@ -21,10 +21,10 @@ from django.contrib.auth import middleware
+ from django.contrib.auth import models
+ from django.utils import decorators
+ from django.utils import timezone
+-from keystoneclient.auth.identity import v2 as v2_auth
+-from keystoneclient.auth.identity import v3 as v3_auth
+-from keystoneclient.auth import token_endpoint
+-from keystoneclient import session
++from keystoneauth1.identity import v2 as v2_auth
++from keystoneauth1.identity import v3 as v3_auth
++from keystoneauth1 import session
++from keystoneauth1 import token_endpoint
+ from keystoneclient.v2_0 import client as client_v2
+ from keystoneclient.v3 import client as client_v3
+ from six.moves.urllib import parse as urlparse
+diff --git a/openstack_auth/views.py b/openstack_auth/views.py
+index 65feccb..2ea89b9 100644
+--- a/openstack_auth/views.py
++++ b/openstack_auth/views.py
+@@ -28,8 +28,8 @@ from django.views.decorators.cache import never_cache  # noqa
+ from django.views.decorators.csrf import csrf_exempt  # noqa
+ from django.views.decorators.csrf import csrf_protect  # noqa
+ from django.views.decorators.debug import sensitive_post_parameters  # noqa
+-from keystoneclient.auth import token_endpoint
+-from keystoneclient import exceptions as keystone_exceptions
++from keystoneauth1 import exceptions as keystone_exceptions
++from keystoneauth1 import token_endpoint
+ import six
+ 
+ from openstack_auth import exceptions
+diff --git a/requirements.txt b/requirements.txt
+index 80f10cb..bc5ff28 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -6,4 +6,5 @@ Django<1.9,>=1.8
+ oslo.config>=2.7.0 # Apache-2.0
+ oslo.policy>=0.5.0 # Apache-2.0
+ python-keystoneclient!=1.8.0,>=1.6.0
++keystoneauth1>=2.1.0
+ six>=1.9.0
+-- 
+1.9.1
+
