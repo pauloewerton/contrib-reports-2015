@@ -1,0 +1,18 @@
+Type,Pattern,Regex,Comment
+generic,domain_id:<id>,domain\_id\:(?P<id>[a-zA-Z0-9]+$),the user must belong to domain %(id)s
+generic,role:<role>,role\:(?P<role>[\w]+$),the user must have role %(role)s assigned
+generic,user_id:<id>,user\_id\:(?P<id>[a-zA-Z0-9]+$),the owner must be %(id)s
+generic,project_id:<id>,project\_id\:(?P<id>[a-zA-Z0-9]+$),scoped to %(id)s
+generic,is_admin:1/True,is\_admin\:(1|True)$,the is_admin attribute in token must be true
+http,url:<url>,url\:(?P<url>[\w]+$) (review url regex),the URL %(url)s must be validated
+and,<rule1> and <rule2>,(?P<rule1>[a-zA-Z0-9\:\_]+)\sand\s(?P<rule2>[a-zA-Z0-9\:\_]+)\s*,%(rule1)s and %(rule2)s
+or,<rule1> or <rule2>,(?P<rule1>[a-zA-Z0-9\:\_]+)\sor\s(?P<rule2>[a-zA-Z0-9\:\_]+)\s*,%(rule1)s or %(rule2)s
+not,not <rule1>,,not %(rule1)s
+composed,rule:<rule>,rule\:(?P<rule_name>[a-zA-Z0-9\:\]),Needs to %(rule)s
+action,service:<action>: <rule>,,"To perform the action %(action)s, "
+generic,<attr>:<value>,(?P<attr>[\w]+)\:(?P<value>[\w]+$),the attribute %(attr)s must match %(value)s
+false_check,False:<attr>,False\:(?P<attr>[\w]+$),The attribute %(attr)s must be False
+true_check,True:<attr>,True\:(?P<attr>[\w]+$),The attribute %(attr)s must be True
+false_check,!,\!$,The action is prohibited for everyone
+true_check,@,\@$,The action is allowed for everyone
+rule_definition,rule_name: <definition>,,The rule <rule_name> means that <definition>
