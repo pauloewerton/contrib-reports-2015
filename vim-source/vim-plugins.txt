@@ -1,4 +1,6 @@
 nerdtree
 supertab
 vim-airline
+vim-devicons
+  Monaco fonts for nerd-font: https://github.com/Karmenzind/monaco-nerd-fonts
 vim-flake8
