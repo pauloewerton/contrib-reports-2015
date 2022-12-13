@@ -1,8 +1,33 @@
-" Load pathogen with docs for all plugins
-call pathogen#infect()
-filetype plugin indent on
-set omnifunc=syntaxcomplete#Complete
-"
+" set plugins with vim-plug
+call plug#begin('~/.vim/plugged')
+
+" themes
+Plug 'rakr/vim-one'
+
+" web development
+Plug 'NikolayFrantsev/jshint2.vim'
+Plug 'prettier/vim-prettier', { 'do': 'npm install --frozen-lockfile --production' }
+
+" files and navigation
+Plug 'scrooloose/nerdtree'
+Plug 'ryanoasis/vim-devicons'
+Plug 'vim-airline/vim-airline'
+Plug 'ervandew/supertab'
+Plug 'sheerun/vim-polyglot'
+Plug 'ctrlpvim/ctrlp.vim'
+Plug 'tpope/vim-commentary'
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-surround'
+Plug 'jiangmiao/auto-pairs'
+
+"snippets
+Plug 'honza/vim-snippets'
+Plug 'tomtom/tlib_vim'
+Plug 'MarcWeber/vim-addon-mw-utils'
+Plug 'garbas/vim-snipmate'
+
+call plug#end()
+
 " set charset
 set encoding=utf-8
 
@@ -25,7 +50,7 @@ set number
 
 " show a line at column 79
 if exists("&colorcolumn")
-    set colorcolumn=79
+    set colorcolumn=99
 endif
 
 " have a line indicate the cursor location
@@ -42,7 +67,7 @@ set expandtab
 
 " don't wrap text
 " set wrap
-set textwidth=80
+set textwidth=100
 
 " don't wrap text in the middle of a word
 set linebreak
@@ -50,19 +75,26 @@ set linebreak
 " use smart indent if there is no indent file
 set smartindent
 
-" <tab> inserts 4 spaces
-set tabstop=4
+" <tab> inserts 2 spaces
+set tabstop=2
 
-" indent level is 4 spaces wide
-set shiftwidth=4
+" indent level is 2 spaces wide
+set shiftwidth=2
 
 " <BS> over an autoindent deletes both spaces.
-set softtabstop=4
+set softtabstop=2
 
-" set tab settings and spacing to 2 when editing front-end scripts
-autocmd Filetype html setlocal ts=2 sh=2 sts=2 cc=99 tw=100
-autocmd Filetype css setlocal ts=2 sh=2 sts=2 cc=99 tw=100
-autocmd Filetype javascript setlocal ts=2 sh=2 sts=2 cc=99 tw=100
+" set tab settings and spacing to 4 when editing python scripts
+autocmd FileType python setlocal ts=4 sh=4 sts=4 cc=79 tw=80
+
+" set tab settings and spacing to 4 when editing java programs
+autocmd FileType java setlocal ts=4 sh=4 sts=4 cc=79 tw=80
+
+" set tab settings and spacing to 4 when editing vue modules
+autocmd FileType vue setlocal ts=2 sh=2 sts=2 cc=99 tw=100
+
+" enable spell checking for markdown (used for blogging)
+autocmd FileType markdown setlocal spell spelllang=pt_br
 
 " rounds indent to a multiple of shiftwidth
 set shiftround
@@ -96,18 +128,17 @@ colorscheme one
 " remove trailing whitespace on <leader>S
 noremap <leader>S :%s/\s\+$//<cr>:let @/=''<CR>
 
+" disable double spacing between sentences
+set nojoinspaces
+
+" Plugins Settings
+
 " NERDTree activate
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 
 " set shortcut key and open NerdTree at start
 map <leader>n :NERDTreeToggle<CR>
 let NERDTreeIgnore = ['\.pyc$', '\.egg-info$', '\.db$']
-
-" enable spell checking for markdown (used for blogging)
-autocmd Filetype markdown setlocal spell spelllang=pt_br
-
-" disable double spacing between sentences
-set nojoinspaces
 
 " adjust airline
 let g:airline_theme='one' " vim-one theme for airline
@@ -118,4 +149,24 @@ let g:airline#extensions#tabline#tab_nr_type = 1 " tab number, not split number
 let g:airline#extensions#tabline#show_tab_count = 0 " no need for tab count
 let g:airline#extensions#tabline#show_buffers = 0 " no need for buffers label
 let g:airline#extensions#tabline#formatter = 'default'
+let g:airline#extensions#fugitive#enabled = 1 " enable fugitive
+
 set laststatus=2
+
+" adjust ctrlp
+let g:ctrlp_user_command = ['.git/', 'git ls-files --cached --others  --exclude-standard %s']
+
+" adjust jshint.vim
+let g:jshint2_save = 1
+
+" adjust prettier
+let g:prettier#autoformat = 1
+let g:prettier#autoformat_require_pragma = 0
+let g:prettier#config#single_quote = 'true'
+let g:prettier#config#bracket_same_line = 'true'
+
+" indentline use colorscheme
+let g:indentLine_setColors = 0
+
+" snipmate parser
+let g:snipMate = { 'snippet_version' : 1 }
