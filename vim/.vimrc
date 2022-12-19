@@ -19,6 +19,8 @@ Plug 'tpope/vim-commentary'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
 Plug 'jiangmiao/auto-pairs'
+Plug 'nathanaelkane/vim-indent-guides'
+Plug 'tiagofumo/vim-nerdtree-syntax-highlight'
 
 "snippets
 Plug 'honza/vim-snippets'
@@ -56,8 +58,6 @@ endif
 " have a line indicate the cursor location
 set cursorline
 
-" we are using dark background in vim
-set background=light
 
 " show the cursor position all the time
 set ruler
@@ -124,6 +124,7 @@ set invhlsearch
 
 " set color theme
 colorscheme one
+set background=light
 
 " remove trailing whitespace on <leader>S
 noremap <leader>S :%s/\s\+$//<cr>:let @/=''<CR>
@@ -170,3 +171,10 @@ let g:indentLine_setColors = 0
 
 " snipmate parser
 let g:snipMate = { 'snippet_version' : 1 }
+
+" indentguide enabled by default
+let g:indent_guides_enable_on_vim_startup = 1
+let g:indent_guides_auto_colors = 0
+" indentguide colors for vim-one light
+autocmd VimEnter,Colorscheme * :hi IndentGuidesOdd  guibg=white ctermbg=253
+autocmd VimEnter,Colorscheme * :hi IndentGuidesEven guibg=white ctermbg=254
