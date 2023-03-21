@@ -34,7 +34,7 @@ call plug#end()
 set encoding=utf-8
 
 " set font
-set guifont=Monaco\ Nerd\ Font:h13
+set guifont=JetBrainsMono\ Nerd\ Font
 
 " adjust colors
 let g:solarized_termcolors=256
