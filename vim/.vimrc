@@ -6,7 +6,7 @@ Plug 'rakr/vim-one'
 
 " web development
 Plug 'NikolayFrantsev/jshint2.vim'
-Plug 'prettier/vim-prettier'
+Plug 'prettier/vim-prettier', { 'do': 'npm install --frozen-lockfile --production' }
 
 " files and navigation
 Plug 'scrooloose/nerdtree'
